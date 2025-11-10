@@ -24,21 +24,15 @@
 %endif
 
 %if %{undefined rpm_release}
-    %define rpm_release B099
+    %define rpm_release 1
 %endif
 
 %if %{undefined rpm_build_date}
     %define rpm_build_date %(date +"%%Y-%%m-%%d-%%H:%%M:%%S")
 %endif
 
-# 根据构建类型决定是否生成 debuginfo 包
-%if "%{build_type}" == "debug"
-    %global package_suffix OCK-CommunicationSuite_HCOM_Debug
-    %global _enable_debug_packages 1
-%else
-    %global package_suffix OCK-CommunicationSuite_HCOM
-    %global debug_package %{nil}
-%endif
+%global package_suffix ubs-hcom
+%global debug_package %{nil}
 
 Name:           %{package_suffix}
 Version       : %{rpm_version}
@@ -50,48 +44,71 @@ Source0       : %{package_name}.tar.gz
 BuildRoot     : %{_buildirootdir}/%{name}_%{version}-build
 buildArch     : aarch64 x86_64
 
-%package debug
-Summary:       debug info of hcom debug
+BuildRequires: make gcc cmake libboundscheck
+Requires: libboundscheck
 
-%description debug
-This package contains debug info of hcom.so
 %description
 HCOM是一个适用于C/S架构应用程序的高性能通信库
 
+%package devel
+Summary: Development header files and dynamic library for HCOM
+
+%description devel
+This package contains development header files and dynamic library for HCOM
+
+%package debuginfo
+Summary: Debuginfo for HCOM
+
+%description debuginfo
+This package contains debug info of hcom.so
 %prep
 %setup -c -n %{name}_%{version}
 
 %install
 rm -rf %{buildroot}
-mkdir -p %{buildroot}/usr/local/lib/hcom
+mkdir -p %{buildroot}/usr/lib64/
 mkdir -p  %{buildroot}/usr/local/jars/hcom
 mkdir -p %{buildroot}/usr/include/hcom/capi
 mkdir -p %{buildroot}/usr/local/bin
 
-cp %{_builddir}/%{name}_%{version}/%{package_name}/hcom/lib/*  %{buildroot}/usr/local/lib/hcom
-cp -r %{_builddir}/%{name}_%{version}/%{package_name}/hcom/include/hcom/*  %{buildroot}/usr/include/hcom
+cp %{_builddir}/%{name}_%{version}/%{package_name}/hcom/lib/*  %{buildroot}/usr/lib64/
+cp -r %{_builddir}/%{name}_%{version}/%{package_name}/hcom/include/hcom/*  %{buildroot}/usr/include/hcom/
 
 %if %{with java_compile}
-    cp %{_builddir}/%{name}_%{version}/%{package_name}/hcom/jars/*  %{buildroot}/usr/local/jars/hcom
+    cp %{_builddir}/%{name}_%{version}/%{package_name}/hcom/jars/*  %{buildroot}/usr/local/jars/hcom/
 %endif
 
 %if %{with_hcom_perf}
-    cp -r %{_builddir}/%{name}_%{version}/%{package_name}/hcom/hcom_perf  %{buildroot}/usr/local/bin
+    cp -r %{_builddir}/%{name}_%{version}/%{package_name}/hcom/hcom_perf  %{buildroot}/usr/local/bin/
 %endif
 
 %if %{with_htracer_cli}
-    cp -r %{_builddir}/%{name}_%{version}/%{package_name}/hcom/bin/htracer_cli  %{buildroot}/usr/local/bin
+    cp -r %{_builddir}/%{name}_%{version}/%{package_name}/hcom/bin/htracer_cli  %{buildroot}/usr/local/bin/
 %endif
 
 %files
+%defattr(-,root,root)
+%{_prefix}/lib64/*.so
+%{_prefix}/lib64/*.a
+%if %{with java_compile}
+    %{_prefix}/local/jars/hcom/*.jar
+%endif
+
+%files devel
 %defattr(-,root,root)
 %{_prefix}/include/hcom/capi/*.h
 %{_prefix}/include/hcom/*.h
 %if %{with_hcom_perf} || %{with_htracer_cli}
     %{_prefix}/local/bin/*
 %endif
-%{_prefix}/local/lib/hcom/*.so
-%{_prefix}/local/lib/hcom/*.a
+%{_prefix}/lib64/*.so
+%{_prefix}/lib64/*.a
 %if %{with java_compile}
     %{_prefix}/local/jars/hcom/*.jar
 %endif
+
+%files debuginfo
+%defattr(-,root,root)
+%{_prefix}/lib64/libhcom.so.debug
+
+%define __os_install_post %{nil}

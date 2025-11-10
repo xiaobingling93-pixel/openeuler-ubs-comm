@@ -16,10 +16,10 @@ add_link_options(
         -s
 )
 
-set(HCOM_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../../../dist/hcom/include")
-set(HCOM_LIB_DIR "${CMAKE_SOURCE_DIR}/../../../dist/hcom/lib")
-set(SECUREC_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../../../dist/hcom_3rdparty/huawei_secure_c/include")
-set(SECUREC_LIB_DIR "${CMAKE_SOURCE_DIR}/../../../dist/hcom_3rdparty/huawei_secure_c/lib")
+set(HCOM_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../../../../dist/hcom/include")
+set(HCOM_LIB_DIR "${CMAKE_SOURCE_DIR}/../../../../dist/hcom/lib")
+set(SECUREC_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../../../../dist/hcom_3rdparty/huawei_secure_c/include")
+set(SECUREC_LIB_DIR "${CMAKE_SOURCE_DIR}/../../../../dist/hcom_3rdparty/huawei_secure_c/lib")
 
 include_directories("${HCOM_INCLUDE_DIR}"
                     "${SECUREC_INCLUDE_DIR}")

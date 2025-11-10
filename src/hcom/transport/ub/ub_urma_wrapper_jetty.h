@@ -17,7 +17,7 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include "ub/umdk/urma/urma_ubagg.h"
+#include "urma_ubagg.h"
 
 #include "hcom_utils.h"
 #include "net_util.h"

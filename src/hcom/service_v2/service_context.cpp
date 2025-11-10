@@ -47,5 +47,38 @@ UBSHcomServiceContext::UBSHcomServiceContext(const UBSHcomRequestContext &ctx, U
     mErrorCode = ctx.Header().errorCode;
 }
 
+SerResult UBSHcomServiceContext::CopyData(void *data, uint32_t dataLen)
+{
+    mData = malloc(dataLen);
+    if (NN_UNLIKELY(mData == nullptr)) {
+        NN_LOG_ERROR("Invalid msg size " << dataLen << ", alloc failed");
+        return SER_NEW_OBJECT_FAILED;
+    }
+    if (NN_UNLIKELY(memcpy_s(mData, dataLen, data, dataLen) != SER_OK)) {
+        free(mData);
+        mData = nullptr;
+        NN_LOG_ERROR("Failed to copy data");
+        return SER_ERROR;
+    }
+
+    mDataType = MEM_POOL_DATA;
+    return SER_OK;
+}
+
+SerResult UBSHcomServiceContext::Clone(UBSHcomServiceContext &newOne, const UBSHcomServiceContext &oldOne,
+    bool copyData)
+{
+    newOne = oldOne;
+
+    if (copyData && oldOne.mDataLen > NN_NO0) {
+        newOne.mDataLen = oldOne.mDataLen;
+        return newOne.CopyData(oldOne.mData, oldOne.mDataLen);
+    } else {
+        newOne.mDataType = INVALID_DATA;
+        newOne.mDataLen = NN_NO0;
+        newOne.mData = nullptr;
+    }
+    return SER_OK;
+}
 }
 }

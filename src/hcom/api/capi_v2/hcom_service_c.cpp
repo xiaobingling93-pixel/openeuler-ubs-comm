@@ -1073,3 +1073,38 @@ void ubs_hcom_service_set_ubcmode(ubs_hcom_service service, ubs_hcom_service_ubc
     }
     reinterpret_cast<UBSHcomService *>(service)->SetUbcMode(tmpUbcMode);
 }
+
+ubs_hcom_service_context ubs_hcom_context_clone(ubs_hcom_service_context context)
+{
+    VALIDATE_CONTEXT_RETURN_ZERO(context)
+
+    auto innerContext = reinterpret_cast<UBSHcomServiceContext *>(context);
+    auto tmpCtx = new (std::nothrow) UBSHcomServiceContext;
+    if (NN_UNLIKELY(tmpCtx == nullptr)) {
+        NN_LOG_ERROR("Failed to new service ctx by oom");
+        return 0;
+    }
+
+    if (NN_UNLIKELY(UBSHcomServiceContext::Clone(*tmpCtx, *innerContext) != SER_OK)) {
+        delete tmpCtx;
+        NN_LOG_ERROR("Failed to new service ctx by oom");
+        return 0;
+    }
+
+    return reinterpret_cast<ubs_hcom_service_context>(tmpCtx);
+}
+
+void ubs_hcom_context_free(ubs_hcom_service_context context)
+{
+    if (NN_UNLIKELY(context == 0)) {
+        NN_LOG_ERROR("Invalid param, context should be correct address");
+        return;
+    }
+    auto innerContext = reinterpret_cast<UBSHcomServiceContext *>(context);
+    if (NN_UNLIKELY(innerContext == nullptr)) {
+        NN_LOG_ERROR("Failed to free service ctx by nullptr");
+        return;
+    }
+    delete innerContext;
+    return;
+}

@@ -19,7 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ub/umdk/urma/urma_types.h"
+#include "urma_types.h"
 
 #define URMA_SO_PATH "liburma.so.0"
 

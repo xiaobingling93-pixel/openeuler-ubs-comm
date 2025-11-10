@@ -420,6 +420,8 @@ int ubs_hcom_context_get_result(ubs_hcom_service_context context, int *result);
 uint16_t ubs_hcom_context_get_opcode(ubs_hcom_service_context context);
 void *ubs_hcom_context_get_data(ubs_hcom_service_context context);
 uint32_t ubs_hcom_context_get_datalen(ubs_hcom_service_context context);
+ubs_hcom_service_context ubs_hcom_context_clone(ubs_hcom_service_context context);
+void ubs_hcom_context_free(ubs_hcom_service_context context);
 
 /*
  * @brief Set external logger function

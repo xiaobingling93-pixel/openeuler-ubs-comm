@@ -23,6 +23,8 @@ include_directories(${CMAKE_SOURCE_DIR}/src/api/capi_v2/)
 include_directories(${CMAKE_SOURCE_DIR}/src/common/trace)
 
 
+
+set(HCOM_STUB_SRC_DIR ${CMAKE_SOURCE_DIR}/test/stub)
 file(GLOB_RECURSE SOURCE_FILES
     ${CMAKE_SOURCE_DIR}/src/*.cpp
     ${CMAKE_SOURCE_DIR}/src/*.h)
