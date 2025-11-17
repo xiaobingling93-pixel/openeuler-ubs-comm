@@ -15,13 +15,13 @@ set -eo pipefail
 readonly HCOM_LOG_TAG="[$(basename ${0})]"
 readonly CURRENT_SCRIPT_DIR=$(cd $(dirname ${0}) && pwd)
 readonly HCOM_ROOT_DIR=$(dirname ${CURRENT_SCRIPT_DIR})
-readonly HTRACER_CLI_SRC_DIR="${HCOM_ROOT_DIR}/test/tools/hcom_tracer"
-readonly HTRACER_CLI_BUILD_DIR="${HCOM_ROOT_DIR}/test/tools/hcom_tracer/build"
+readonly HTRACER_CLI_SRC_DIR="${HCOM_ROOT_DIR}/test/hcom/tools/hcom_tracer"
+readonly HTRACER_CLI_BUILD_DIR="${HCOM_ROOT_DIR}/test/hcom/tools/hcom_tracer/build"
 
 # ****************************************
 # build htracer_cli
 # ****************************************
-cd ${HTRACER_CLI_SRC_DIR} || { echo "Error: hcom test/tools/hcom_tracer directory not found!"; exit 1; }
+cd ${HTRACER_CLI_SRC_DIR} || { echo "Error: hcom test/hcom/tools/hcom_tracer directory not found!"; exit 1; }
 
 # 如果build目录存在，清理
 if [ -d "build" ]; then

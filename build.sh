@@ -17,6 +17,7 @@
 # (12) HCOM_BUILD_RPM(optional, default is on) => build rpm.(on/off)
 # (13) HCOM_BUILD_TOOLS_PERF(optional, default is off) => build rpm.(on/off)
 # (14) HCOM_BUILD_HW_CRC(optional, default is off) => build with hardware based crc.(on/off)
+# (15) BUILD_HCOM(optional, default is ON) => build hcom.(ON/OFF)
 
 # version: 1.0.0
 # change log:
@@ -100,6 +101,10 @@ echo "${HCOM_LOG_TAG} hcom build java sdk: ${HCOM_BUILD_JAVA_SDK}"
 HCOM_BUILD_TESTS="${HCOM_BUILD_TESTS:-off}"
 echo "${HCOM_LOG_TAG} hcom build tests: ${HCOM_BUILD_TESTS}"
 
+# check whether enable unittest, default is off.
+BUILD_HCOM="${BUILD_HCOM:-ON}"
+echo "${HCOM_LOG_TAG} build hcom: ${BUILD_HCOM}"
+
 # check whether test tools are installed
 if [[ "${HCOM_BUILD_TESTS,,}" == "on" ]]; then
     [[ -z "${HCOM_TEST_TOOL_PATH}" ]] && HCOM_TEST_TOOL_PATH="${HCOM_ROOT_DIR}/dist/hcom_test_tools"
@@ -114,7 +119,9 @@ fi
 [[ -n "${HCOM_BUILD_DIR}" ]] && rm -rf "${HCOM_BUILD_DIR}"
 [[ -n "${HCOM_INSTALL_DIR}" ]] && rm -rf "${HCOM_INSTALL_DIR}"
 
-cmake -S"${HCOM_ROOT_DIR}" -B"${HCOM_BUILD_DIR}" -DCMAKE_INSTALL_PREFIX="${HCOM_INSTALL_DIR}" \
+cmake -S"${HCOM_ROOT_DIR}" -B"${HCOM_BUILD_DIR}" \
+    -DBUILD_HCOM=${BUILD_HCOM} \
+    -DCMAKE_INSTALL_PREFIX="${HCOM_INSTALL_DIR}" \
     -DCMAKE_BUILD_TYPE=${HCOM_BUILD_TYPE} \
     -DBUILD_TESTS=${HCOM_BUILD_TESTS} \
     -DTEST_TOOL_INSTALL_PATH="${HCOM_TEST_TOOL_PATH}" \

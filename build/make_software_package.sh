@@ -17,7 +17,7 @@ readonly CURRENT_SCRIPT_DIR=$(cd $(dirname ${0}) && pwd)
 readonly HCOM_ROOT_DIR=$(dirname ${CURRENT_SCRIPT_DIR})
 readonly HCOM_INSTALL_DIR="${HCOM_ROOT_DIR}/dist/hcom"
 readonly HCOM_INSTALL_TRACER_DIR="${HCOM_ROOT_DIR}/dist/hcom_3rdparty/hcom_tracer"
-readonly HCOM_TRACER_TOOL="${HCOM_ROOT_DIR}/test/tools/hcom_tracer/build/htracer_cli"
+readonly HCOM_TRACER_TOOL="${HCOM_ROOT_DIR}/test/hcom/tools/hcom_tracer/build/htracer_cli"
 readonly HCOM_COMPONENT_NAME="hcom"
 readonly HCOM_BUILD_TIME=$(date "+%Y-%m-%d %Z")
 readonly HCOM_BUILD_OS_TYPE=$(uname -s)
@@ -136,7 +136,7 @@ chmod 600 "${VERSION_FILE}"
 echo "${HCOM_LOG_TAG} generate HCOM version info done"
 
 # make HCOM software package
-tar -czf "${HCOM_PACKAGE_NAME}.tar.gz" --exclude *.debug* "${HCOM_PACKAGE_NAME}" 
+tar -czf "${HCOM_PACKAGE_NAME}.tar.gz" "${HCOM_PACKAGE_NAME}" 
 echo "${HCOM_LOG_TAG} make HCOM software package done.(${HCOM_PACKAGE_PATH}/${HCOM_PACKAGE_NAME}.tar.gz)"
 
 # check whether enable build rpm, default is ON.
@@ -166,9 +166,4 @@ base_rpmbuild_cmd="rpmbuild --define \"package_name ${HCOM_PACKAGE_NAME}\" -bb h
 
 # 执行最终的 rpmbuild 命令
 eval "$base_rpmbuild_cmd"
-
-if [[ "${HCOM_BUILD_TYPE,,}" == "debug" ]]; then
-    cp ~/rpmbuild/RPMS/${HCOM_BUILD_OS_ARCH}/OCK-CommunicationSuite_HCOM_Debug-2.0.0-B099*.rpm "${HCOM_ROOT_DIR}/dist/OCK-CommunicationSuite_HCOM_Debug_2.0.0_${OS}-${HCOM_BUILD_OS_ARCH}.rpm"
-else
-    cp ~/rpmbuild/RPMS/${HCOM_BUILD_OS_ARCH}/OCK-CommunicationSuite_HCOM-2.0.0-B099*.rpm "${HCOM_ROOT_DIR}/dist/OCK-CommunicationSuite_HCOM_2.0.0_${OS}-${HCOM_BUILD_OS_ARCH}.rpm"
-fi
+cp ~/rpmbuild/RPMS/${HCOM_BUILD_OS_ARCH}/ubs-hcom-2.0.0*.rpm "${HCOM_ROOT_DIR}/dist/ubs-hcom-2.0.0-1.${OS}_${HCOM_BUILD_OS_ARCH}.rpm"
