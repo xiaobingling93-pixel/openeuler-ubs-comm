@@ -150,7 +150,7 @@ typedef void (*ubs_hcom_log_handler)(int level, const char *msg);
 typedef enum {
     C_SERVICE_BUSY_POLLING = 0,
     C_SERVICE_EVENT_POLLING = 1,
-} ubs_hcom_worker_mode;
+} ubs_hcom_service_worker_mode;
 
 typedef enum {
     C_CLIENT_WORKER_POLL = 0,
@@ -247,7 +247,7 @@ typedef struct {
     uint32_t maxSendRecvDataSize;
     uint16_t workerGroupId;
     uint16_t workerGroupThreadCount;
-    ubs_hcom_worker_mode workerGroupMode;
+    ubs_hcom_service_worker_mode workerGroupMode;
     int8_t workerThreadPriority;
     char workerGroupCpuRange[64];   // worker group cpu range, for example 6-10
 } ubs_hcom_service_options;
