@@ -41,6 +41,7 @@ endif ()
 
 # collect hcom source files
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom)
+include_directories(${CMAKE_SOURCE_DIR}/src/hcom/)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/service_v2)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/service_v2/api)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/common)
@@ -57,6 +58,8 @@ include_directories(${CMAKE_SOURCE_DIR}/src/hcom/under_api/openssl)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/under_api/urma)
 include_directories(${CMAKE_SOURCE_DIR}/tmp_build_dir/_deps/umdk-src/src/urma/lib/urma/core/include)
 include_directories(${CMAKE_SOURCE_DIR}/tmp_build_dir/_deps/umdk-src/src/urma/lib/urma/bond/include)
+include_directories(${CMAKE_SOURCE_DIR}/tmp_build_dir/_deps/libboundscheck-src/include)
+
 file(GLOB_RECURSE SOURCE_FILES
     ${CMAKE_SOURCE_DIR}/src/hcom/*.cpp
     ${CMAKE_SOURCE_DIR}/src/hcom/*.h)

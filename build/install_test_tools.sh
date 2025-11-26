@@ -55,26 +55,12 @@ cd ${TEST_TOOL_BUILD_DIR}
 git clone https://github.com/sinojelly/mockcpp.git
 cd mockcpp
 git checkout -b mockcpp_arm v2.7
-git apply ${HCOM_ROOT_DIR}/test/external_libs/mockcpp_support_arm64.patch
+git -c user.name='Jenkins' -c user.email='jenkins@local' am --ignore-whitespace -3 ${HCOM_ROOT_DIR}/test/hcom/external_libs/mockcpp_support_arm64.patch
 mkdir build && cd build
 cmake -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${MOCKCPP_INSTALL_PATH} ..
 make -j8
 make install
 echo "${HCOM_LOG_TAG} mockcpp install to ${MOCKCPP_INSTALL_PATH} success."
-
-# prepare secodefuzz
-cd ${TEST_TOOL_BUILD_DIR}
-git clone https://codehub-dg-y.huawei.com/software-engineering-research-community/fuzz/secodefuzz.git
-cd secodefuzz
-git checkout -b v2.4.8 v2.4.8
-bash build.sh
-mkdir -p "${SECODEFUZZ_INSTALL_PATH}/lib"
-cp ./examples/out-bin-x64/out/* "${SECODEFUZZ_INSTALL_PATH}/lib"
-cp ./examples/out-bin-x64/libSecodefuzz.a "${SECODEFUZZ_INSTALL_PATH}/lib"
-mkdir -p "${SECODEFUZZ_INSTALL_PATH}/include/secodefuzz"
-cp ./Secodefuzz/secodeFuzz.h "${SECODEFUZZ_INSTALL_PATH}/include/secodefuzz"
-echo "${HCOM_LOG_TAG} secodefuzz install to ${SECODEFUZZ_INSTALL_PATH} success."
-
 # clean
 rm -rf ${TEST_TOOL_BUILD_DIR}
