@@ -334,7 +334,22 @@ public:
     }
 
     // adapt to brpc, brpc IOBuf block use 8k as buffer slice with a 32 bytes head, thus, RX buffer size is 8160
-    static const uint32_t BRPC_IOBUF_SIZE = 8160;
+    uint32_t BrpcIOBufSize()
+    {
+        if (Context::GetContext()->GetIOBlockType() == BLOCK_SIZE_8K) {
+            return 8160;
+        }
+        return 65504;
+    }
+
+    uint64_t FloorMask()
+    {
+        if (Context::GetContext()->GetIOBlockType() == BLOCK_SIZE_8K) {
+            return 8191;
+        }
+        return 65535;
+    }
+
     static const uint32_t SGE_MAX = 16;
     // currently, the upper limit of post batch for umq is 64
     static const uint32_t POST_BATCH_MAX = 64;
@@ -343,7 +358,6 @@ public:
     /* unsolicited bytes use the same setting as brpc
      * accumulated bytes exceed UNSOLICITED_BYTES_MAX will generate a solicited interrupt event at remote */
     static const uint32_t UNSOLICITED_BYTES_MAX = 1048576;
-    static const uint64_t FLOOR_8K_MASK = 8191;
     // to improve the efficiency, do one ack event operation per GET_PER_ACK times get event operation(same as brpc)
     static const uint32_t GET_PER_ACK = 32;
     // defaultRX refill threshold. If RX depth less then REFILL_RX_THRESHOLD, then, threshold change to 1
@@ -440,7 +454,7 @@ public:
 
         /* rpc adapter has replace brpc butil::iobuf::blockmem_allocate() & butil::iof::blockmem_deallocate()
          * and ensures that the starting address of the Block is aligned to an 8k boundary. */
-        IOBuf::Block *out_first_block = (Brpc::IOBuf::Block *)PtrFloorTo8K(iov[0].iov_base);
+        IOBuf::Block *out_first_block = (Brpc::IOBuf::Block *)PtrFloorToBoundary(iov[0].iov_base);
         rx_total_len = m_rx.m_block_cache.CutAndInsertAfter(max_buf_size, out_first_block);
         if (rx_total_len == 0) {
             /* m_rx.m_epoll_event_num not equals to m_rx.m_expect_epoll_event_num means another epoll event is reported
@@ -541,10 +555,10 @@ public:
         do {
             cut_total_len = 0;
             uint32_t cut_len = 0;
-            uint32_t wr_left_len = BRPC_IOBUF_SIZE;
+            uint32_t wr_left_len = BrpcIOBufSize();
             uint32_t sge_idx = 0;
-            while (sge_idx++ < SGE_MAX && cut_total_len < BRPC_IOBUF_SIZE &&
-                ((cut_len = iov_converter.Cut(wr_left_len)) != 0)) {
+            while (sge_idx++ < SGE_MAX && cut_total_len < BrpcIOBufSize() &&
+                   ((cut_len = iov_converter.Cut(wr_left_len)) != 0)) {
                 ++umq_buf_cnt;
                 wr_left_len -= cut_len;
                 cut_total_len += cut_len;
@@ -572,7 +586,7 @@ public:
         for (uint32_t i = 0; i < batch; ++i) {
             umq_buf_t *cur_wr_first = next_buf;
             uint32_t moved_total_len = 0;
-            uint32_t wr_left_len = BRPC_IOBUF_SIZE;
+            uint32_t wr_left_len = BrpcIOBufSize();
             uint32_t sge_idx = 0;
             bool last = false;
             for (cur_buf = cur_wr_first; cur_buf && (next_buf = cur_buf->qbuf_next, 1); cur_buf = next_buf) {
@@ -580,12 +594,12 @@ public:
                 cur_buf->io_direction = UMQ_IO_TX;
                 /* rpc adapter has replace brpc butil::iobuf::blockmem_allocate() & butil::iof::blockmem_deallocate()
                  * and ensures that the starting address of the Block is aligned to an 8k boundary. */
-                ((Brpc::IOBuf::Block *)PtrFloorTo8K(cur_buf->buf_data))->IncRef();
+                ((Brpc::IOBuf::Block *)PtrFloorToBoundary(cur_buf->buf_data))->IncRef();
                 wr_left_len -= cur_buf->data_size;
                 moved_total_len += cur_buf->data_size;
-                if (last || ++sge_idx >= SGE_MAX || moved_total_len >= BRPC_IOBUF_SIZE) {
+                if (last || ++sge_idx >= SGE_MAX || moved_total_len >= BrpcIOBufSize()) {
                     break;
-                } 
+                }
             }
 
             tx_total_len += moved_total_len;
@@ -637,7 +651,7 @@ public:
                 /* rpc adapter has replace brpc butil::iobuf::blockmem_allocate() &
                  * butil::iof::blockmem_deallocate()
                  * and ensures that the starting address of the Block is aligned to an 8k boundary. */
-                ((Brpc::IOBuf::Block *)PtrFloorTo8K(cur->buf_data))->DecRef(); 
+                ((Brpc::IOBuf::Block *)PtrFloorToBoundary(cur->buf_data))->DecRef();
             }
 
             if (bad_qbuf == tx_buf_list) {
@@ -728,7 +742,7 @@ public:
         umq_alloc_option_t option = { UMQ_ALLOC_FLAG_HEAD_ROOM_SIZE, sizeof(IOBuf::Block) };
         do {
             cur_post_rx_num = left_post_rx_num > POST_BATCH_MAX ? POST_BATCH_MAX : left_post_rx_num;
-            umq_buf_t *rx_buf_list = umq_buf_alloc(BRPC_IOBUF_SIZE, cur_post_rx_num, UMQ_INVALID_HANDLE, &option);
+            umq_buf_t *rx_buf_list = umq_buf_alloc(BrpcIOBufSize(), cur_post_rx_num, UMQ_INVALID_HANDLE, &option);
             if (rx_buf_list == nullptr) {
                 RPC_ADPT_VLOG_ERR("Failed to allocate RX buffer, RX depth: %u\n", m_rx_window_capacity);
                 return -1;
@@ -807,8 +821,8 @@ private:
             UMQ_CREATE_FLAG_RX_BUF_SIZE | UMQ_CREATE_FLAG_TX_BUF_SIZE | UMQ_CREATE_FLAG_QUEUE_MODE;
         queue_cfg.rx_depth = context->GetRxDepth();
         queue_cfg.tx_depth = context->GetTxDepth();
-        queue_cfg.rx_buf_size = BRPC_IOBUF_SIZE; 
-        queue_cfg.tx_buf_size = BRPC_IOBUF_SIZE;
+        queue_cfg.rx_buf_size = BrpcIOBufSize();
+        queue_cfg.tx_buf_size = BrpcIOBufSize();
         queue_cfg.mode = UMQ_MODE_INTERRUPT;  
         
         int n = snprintf_s(queue_cfg.name, UMQ_NAME_MAX_LEN, UMQ_NAME_MAX_LEN - 1, "fd: %d", m_fd);
@@ -1014,9 +1028,9 @@ private:
         return 0;  
     }
 
-    ALWAYS_INLINE void *PtrFloorTo8K(void *ptr)
+    ALWAYS_INLINE void *PtrFloorToBoundary(void *ptr)
     {
-        return (void *)((uint64_t)ptr & ~FLOOR_8K_MASK);
+        return (void *)((uint64_t)ptr & ~FloorMask());
     }
 
     ALWAYS_INLINE void ProcessErrorTxCqe(umq_buf_t *first_qbuf)
@@ -1029,7 +1043,7 @@ private:
             /* rpc adapter has replace brpc butil::iobuf::blockmeme_allocate() &
             * butil::iof::blockmem_deallocate() and ensures that the starting address
             * of the Block is aligned to an 8k boundary. */
-            ((Brpc::IOBuf::Block *)PtrFloorTo8K(cur_qbuf->buf_data))->DecRef();
+            ((Brpc::IOBuf::Block *)PtrFloorToBoundary(cur_qbuf->buf_data))->DecRef();
             last_qbuf = cur_qbuf;
             cur_qbuf = QBUF_LIST_NEXT(cur_qbuf);
         }
@@ -1052,7 +1066,7 @@ private:
                 /* rpc adapter has replace brpc butil::iobuf::blockmeme_allocate() &
                 * butil::iof::blockmem_deallocate() and ensures that the starting address
                 * of the Block is aligned to an 8k boundary. */
-                ((Brpc::IOBuf::Block *)PtrFloorTo8K(cur_qbuf->buf_data))->DecRef();
+                ((Brpc::IOBuf::Block *)PtrFloorToBoundary(cur_qbuf->buf_data))->DecRef();
                 last_qbuf = cur_qbuf;
                 cur_qbuf = QBUF_LIST_NEXT(cur_qbuf);
             }
@@ -1302,8 +1316,8 @@ private:
         m_rx.m_window_size -= poll_num;
         if (m_rx_window_capacity - m_rx.m_window_size > m_rx.m_refill_threshold) {
             umq_alloc_option_t option = { UMQ_ALLOC_FLAG_HEAD_ROOM_SIZE, sizeof(IOBuf::Block) };
-            umq_buf_t *rx_buf_list =
-                umq_buf_alloc(BRPC_IOBUF_SIZE, m_rx.m_refill_threshold, UMQ_INVALID_HANDLE, &option);
+            umq_buf_t *rx_buf_list = umq_buf_alloc(BrpcIOBufSize(), m_rx.m_refill_threshold, UMQ_INVALID_HANDLE,
+                                                   &option);
             /* do nothing when failure occurs during refilling RX,
              * try to switch to tcp/ip until poll_num & m_rx.m_window_size both equal to zero */
             if (rx_buf_list != nullptr) {
