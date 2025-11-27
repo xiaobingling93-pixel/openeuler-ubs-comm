@@ -110,6 +110,9 @@ int ConfigSettings::ParseEnvVars()
 
     RPC_ADPT_VLOG_INFO("%s: %d\n", ENV_VAR_RX_DEPTH, m_rx_depth);
 
+    RPC_ADPT_VLOG_INFO("%s: %lu\n", ENV_VAR_BLOCK_TYPE, GetIOBlockTypeStr());
+    RPC_ADPT_VLOG_INFO("%s: %lu\n", ENV_VAR_POOL_INITIAL_SIZE, m_io_total_size);
+
     if(strlen(m_stats_str) > 0){
         m_stats_enable = BoolVal::BoolConverter(m_stats_str);
         RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_STATS, BoolVal::BoolConverter(m_stats_enable),m_stats_str);

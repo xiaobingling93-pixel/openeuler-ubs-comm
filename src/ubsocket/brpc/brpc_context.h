@@ -119,11 +119,13 @@ class Context : public Brpc::ConfigSettings {
         umq_config.io_lock_free = true;
         umq_config.trans_info_num = 1;
         umq_config.flow_control.use_atomic_window = true;
+        umq_config.block_cfg.small_block_size = GetIOBlockType();
 
         const char *dev_info = nullptr;
         int ret = -1;
         if ((dev_info = GetDevIpStr()) != nullptr){
             if(IsDevIpv6()){
+                umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
                 umq_config.trans_info[0].trans_mode = GetTransMode();
                 umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV6;
                 ret = sprintf_s(umq_config.trans_info[0].dev_info.ipv6.ip_addr, UMQ_IPV6_SIZE, "%s", dev_info);
@@ -134,6 +136,7 @@ class Context : public Brpc::ConfigSettings {
                     return;
                 }
             } else {
+                umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
                 umq_config.trans_info[0].trans_mode = GetTransMode();
                 umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV4;
                 ret = sprintf_s(umq_config.trans_info[0].dev_info.ipv4.ip_addr, UMQ_IPV4_SIZE, "%s", dev_info);
@@ -145,6 +148,7 @@ class Context : public Brpc::ConfigSettings {
                 }
             }
         } else if ((dev_info = GetDevNameStr()) != nullptr) {
+            umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
             umq_config.trans_info[0].trans_mode = GetTransMode();
             umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_DEV;
             ret = sprintf_s(umq_config.trans_info[0].dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, "%s", dev_info);

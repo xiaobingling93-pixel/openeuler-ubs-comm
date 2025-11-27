@@ -24,9 +24,13 @@
 #define IP_ADDR_STR_LEN_MAX       (64)
 #define DEV_NAME_STR_LEN_MAX      (64)
 #define TRANS_MODE_STR_LEN_MAX    (64)
+#define BLOCK_TYPE_STR_LEN_MAX    (64)
 #define BOOL_STR_LEN_MAX          (8)
 #define DEFAULT_TX_DEPTH          (128)
 #define DEFAULT_RX_DEPTH          (128)
+#define DEFAULT_IO_TOTAL_SIZE     (1024)    // MB
+#define DEFAULT_QBUF_BLOCK_TYPE   "default" // 8k
+#define LARGE_QBUF_BLOCK_TYPE     "large"   // 64k
 #define ENV_VAR_LOG_LEVEL         "RPC_ADPT_LOG_LEVEL"
 #define ENV_VAR_TRANS_MODE        "RPC_ADPT_TRANS_MODE"
 #define ENV_VAR_DEV_IP            "RPC_ADPT_DEV_IP"
@@ -34,7 +38,9 @@
 #define ENV_VAR_TX_DEPTH          "RPC_ADPT_TX_DEPTH"
 #define ENV_VAR_RX_DEPTH          "RPC_ADPT_RX_DEPTH"
 #define ENV_VAR_STATS             "RPC_ADPT_STATS"
- 
+#define ENV_VAR_BLOCK_TYPE        "RPC_ADPT_BLOCK_TYPE"        // default, large
+#define ENV_VAR_POOL_INITIAL_SIZE "RPC_ADPT_POOL_INITIAL_SIZE" // MB
+
 template <typename T>
 class EnvStrConverter {
 public:
@@ -166,6 +172,21 @@ public:
         return m_stats_enable;
     }
 
+    uint64_t GetIOTotalSize()
+    {
+        return m_io_total_size;
+    }
+
+    const char *GetIOBlockTypeStr()
+    {
+        return strlen(m_block_type_str) > 0 ? m_block_type_str : DEFAULT_QBUF_BLOCK_TYPE;
+    }
+
+    umq_buf_block_size_t GetIOBlockType()
+    {
+        return m_block_type;
+    }
+
 protected:
     static void ReadEnvVar(char *env_ptr, char *output_str, uint32_t output_str_len)
     {
@@ -216,6 +237,22 @@ protected:
         if((env_ptr = getenv(ENV_VAR_STATS)) != NULL){
             ReadEnvVar(env_ptr,m_stats_str,sizeof(m_stats_str));
         }
+
+        if ((env_ptr = getenv(ENV_VAR_POOL_INITIAL_SIZE)) != NULL) {
+            uint64_t total_size = static_cast<uint64_t>(atoi(env_ptr));
+            m_io_total_size = total_size == 0 ? DEFAULT_IO_TOTAL_SIZE : total_size;
+        }
+        if ((env_ptr = getenv(ENV_VAR_BLOCK_TYPE)) != NULL) {
+            ReadEnvVar(env_ptr, m_block_type_str, sizeof(m_block_type_str));
+            if (memcmp(m_block_type_str, DEFAULT_QBUF_BLOCK_TYPE, strlen(m_block_type_str)) == 0) {
+                m_block_type = BLOCK_SIZE_8K;
+            } else if (memcmp(m_block_type_str, LARGE_QBUF_BLOCK_TYPE, strlen(m_block_type_str)) == 0) {
+                m_block_type = BLOCK_SIZE_64K;
+            } else {
+                (void)strcpy_s(m_block_type_str, sizeof(m_block_type_str), DEFAULT_QBUF_BLOCK_TYPE);
+                m_block_type = BLOCK_SIZE_8K;
+            }
+        }
     }
 
     void SetSocketFdTransMode(socket_fd_trans_mode trans_mode)
@@ -234,10 +271,13 @@ protected:
     char m_dev_ip_str[IP_ADDR_STR_LEN_MAX] = "";
     char m_dev_name_str[DEV_NAME_STR_LEN_MAX] = "";
     char m_stats_str[BOOL_STR_LEN_MAX] = "";
+    char m_block_type_str[BLOCK_TYPE_STR_LEN_MAX] = "";
     uint32_t m_tx_depth = DEFAULT_TX_DEPTH;
     uint32_t m_rx_depth = DEFAULT_RX_DEPTH;
+    uint64_t m_io_total_size = DEFAULT_IO_TOTAL_SIZE;
     util_vlog_level_t m_log_level;
     umq_trans_mode_t m_trans_mode;
+    umq_buf_block_size_t m_block_type = BLOCK_SIZE_8K;
     struct sockaddr_in m_addr;
     struct sockaddr_in6 m_addr6;
     bool m_is_ipv6 = false;
