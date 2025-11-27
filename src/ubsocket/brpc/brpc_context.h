@@ -158,6 +158,7 @@ class Context : public Brpc::ConfigSettings {
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;
             }
+            umq_config.eid_idx = GetEidIdx();
         }
 
         ret = umq_init(&umq_config);

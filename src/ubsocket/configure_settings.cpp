@@ -106,6 +106,7 @@ int ConfigSettings::ParseEnvVars()
          return -1;
     } 
     
+    RPC_ADPT_VLOG_INFO("%s: %d\n", ENV_VAR_EID_IDX, m_eid_idx);
     RPC_ADPT_VLOG_INFO("%s: %d\n", ENV_VAR_TX_DEPTH, m_tx_depth);
 
     RPC_ADPT_VLOG_INFO("%s: %d\n", ENV_VAR_RX_DEPTH, m_rx_depth);
