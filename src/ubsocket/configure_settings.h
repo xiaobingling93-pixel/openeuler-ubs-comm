@@ -36,7 +36,7 @@
 #define ENV_VAR_TRANS_MODE        "RPC_ADPT_TRANS_MODE"
 #define ENV_VAR_DEV_IP            "RPC_ADPT_DEV_IP"
 #define ENV_VAR_DEV_DEV_NAME      "RPC_ADPT_DEV_NAME"
-#define ENV_VAR_DEV_EID_IDX       "RPC_ADPT_EID_IDX"
+#define ENV_VAR_EID_IDX           "RPC_ADPT_EID_IDX"
 #define ENV_VAR_TX_DEPTH          "RPC_ADPT_TX_DEPTH"
 #define ENV_VAR_RX_DEPTH          "RPC_ADPT_RX_DEPTH"
 #define ENV_VAR_STATS             "RPC_ADPT_STATS"

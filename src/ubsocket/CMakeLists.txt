@@ -19,10 +19,11 @@ else()
     set(CMAKE_CXX_FLAGS  "${CMAKE_FLAGS_PUBILC} ${CMAKE_FLAGS_x86_64} -std=c++11")
 endif()
 
-if (NOT DEFINE UMQ_INCLUDE OR UMQ_INCLUDE STREQUAL "")
+if (NOT DEFINED UMQ_INCLUDE OR UMQ_INCLUDE STREQUAL "")
     set(UMQ_INCLUDE "/usr/include/ub/umdk/urpc/umq/")
 endif()
-if (NOT DEFINE UMQ_LIB OR UMQ_LIB STREQUAL "")
+
+if (NOT DEFINED UMQ_LIB OR UMQ_LIB STREQUAL "")
     set(UMQ_LIB "/usr/lib64/libumq.so")
 endif()
 
