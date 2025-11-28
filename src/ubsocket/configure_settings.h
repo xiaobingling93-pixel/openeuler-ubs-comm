@@ -134,7 +134,7 @@ public:
         return m_tx_depth;
     }
 
-    uint32_t GetDevIdx()
+    uint32_t GetEidIdx()
     {
         return m_eid_idx;
     }
