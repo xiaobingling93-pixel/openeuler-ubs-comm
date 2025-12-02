@@ -26,6 +26,7 @@
 #define TRANS_MODE_STR_LEN_MAX    (64)
 #define BLOCK_TYPE_STR_LEN_MAX    (64)
 #define BOOL_STR_LEN_MAX          (8)
+#define DEFAULT_EID_IDX           (0)
 #define DEFAULT_TX_DEPTH          (128)
 #define DEFAULT_RX_DEPTH          (128)
 #define DEFAULT_IO_TOTAL_SIZE     (1024)    // MB
@@ -36,6 +37,7 @@
 #define ENV_VAR_TRANS_MODE        "RPC_ADPT_TRANS_MODE"
 #define ENV_VAR_DEV_IP            "RPC_ADPT_DEV_IP"
 #define ENV_VAR_DEV_DEV_NAME      "RPC_ADPT_DEV_NAME"
+#define ENV_VAR_EID_IDX           "RPC_ADPT_EID_IDX"
 #define ENV_VAR_TX_DEPTH          "RPC_ADPT_TX_DEPTH"
 #define ENV_VAR_RX_DEPTH          "RPC_ADPT_RX_DEPTH"
 #define ENV_VAR_STATS             "RPC_ADPT_STATS"
@@ -134,6 +136,11 @@ public:
         return m_tx_depth;
     }
 
+    uint32_t GetEidIdx()
+    {
+        return m_eid_idx;
+    }
+
     uint32_t GetRxDepth()
     {
         return m_rx_depth;
@@ -227,6 +234,13 @@ protected:
             ReadEnvVar(env_ptr,m_dev_name_str,sizeof(m_dev_name_str));
         }
 
+        if((env_ptr = getenv(ENV_VAR_EID_IDX))!=NULL){
+            /* atoi return 0 means (1) failed to transfer input to int; (2) user set 0;
+            both of them use default value directly*/
+            uint32_t input_eid_idx = static_cast<uint32_t>(atoi(env_ptr));
+            m_eid_idx = input_eid_idx == 0 ? DEFAULT_EID_IDX : input_eid_idx;
+        }
+
         if((env_ptr = getenv(ENV_VAR_TX_DEPTH))!=NULL){
             /* atoi return 0 means (1) failed to transfer input to int; (2) user set 0;
             both of them use default value directly*/
@@ -284,6 +298,7 @@ protected:
     char m_dev_name_str[DEV_NAME_STR_LEN_MAX] = "";
     char m_stats_str[BOOL_STR_LEN_MAX] = "";
     char m_block_type_str[BLOCK_TYPE_STR_LEN_MAX] = "";
+    uint32_t m_eid_idx = DEFAULT_EID_IDX;
     uint32_t m_tx_depth = DEFAULT_TX_DEPTH;
     uint32_t m_rx_depth = DEFAULT_RX_DEPTH;
     uint64_t m_io_total_size = DEFAULT_IO_TOTAL_SIZE * IO_SIZE_MB;
