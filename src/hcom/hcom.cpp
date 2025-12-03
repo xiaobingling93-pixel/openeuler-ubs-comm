@@ -1181,8 +1181,8 @@ std::string &UBSHcomNetMemoryAllocatorTypeToString(UBSHcomNetMemoryAllocatorType
 std::string UBSHcomNetMemoryAllocatorOptions::ToString() const
 {
     std::ostringstream oss;
-    oss << "address " << address << ", size " << size << ", minBlockSize " << minBlockSize << ", alignedAddress " <<
-        alignedAddress << ", cacheTierCount " << cacheTierCount << ", cacheBlockCountPerTier " <<
+    oss << ", size " << size << ", minBlockSize " << minBlockSize <<
+        ", cacheTierCount " << cacheTierCount << ", cacheBlockCountPerTier " <<
         cacheBlockCountPerTier << ", cacheTierPolicy " << cacheTierPolicy;
     return oss.str();
 }
