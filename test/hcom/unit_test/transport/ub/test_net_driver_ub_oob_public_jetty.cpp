@@ -424,6 +424,17 @@ TEST_F(TestNetDriverUBPublicJetty, FillExchMsg)
     free(exchangeInfo);
 }
 
+TEST_F(TestNetDriverUBPublicJetty, FillExchMsgPayloadErr)
+{
+    JettyConnHeader *exchangeInfo = (JettyConnHeader *)malloc(sizeof(JettyConnHeader) + NN_NO6);
+    std::string payload(NN_NO1024, '\0');
+
+    MOCKER_CPP(&UBJetty::FillExchangeInfo).stubs().will(returnValue(0));
+
+    EXPECT_EQ(driver->FillExchMsg(exchangeInfo, qp, payload, 0, jetty), NN_ERROR);
+    free(exchangeInfo);
+}
+
 TEST_F(TestNetDriverUBPublicJetty, FillExchMsgHeartBeat)
 {
     JettyConnHeader *exchangeInfo = (JettyConnHeader *)malloc(sizeof(JettyConnHeader) + NN_NO6);

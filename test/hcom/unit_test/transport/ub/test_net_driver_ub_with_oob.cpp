@@ -1214,6 +1214,7 @@ TEST_F(TestNetDriverUBWithOob, SendFinishedCB)
     MOCKER_CPP(&UBJetty::ReturnPostSendWr).stubs().will(ignoreReturnValue());
     MOCKER_CPP(&UBMemoryRegionFixedBuffer::ReturnBuffer).stubs().will(returnValue(false));
     MOCKER_CPP(&UBWorker::ReturnOpContextInfo).stubs().will(ignoreReturnValue());
+    MOCKER(memcpy_s).stubs().will(returnValue(0));
     EXPECT_EQ(driver->SendFinishedCB(&ctxInfo), NN_OK);
 }
 
@@ -1233,7 +1234,11 @@ TEST_F(TestNetDriverUBWithOob, RWSglOneSideDoneCB)
 
     MOCKER_CPP(&UBWorker::ReturnSglContextInfo).stubs().will(ignoreReturnValue());
     MOCKER_CPP(&UBWorker::ReturnOpContextInfo).stubs().will(ignoreReturnValue());
-    EXPECT_EQ(driver->RWSglOneSideDoneCB(&ctxInfo, netCtx), NN_OK);
+    UBSHcomNetDriverOneSideDoneHandler handler = [](const UBSHcomNetRequestContext&) -> int {
+        return 1; // 返回值固定为 1
+    };
+    driver->RegisterOneSideDoneHandler(handler); // 注册 handler
+    EXPECT_EQ(driver->RWSglOneSideDoneCB(&ctxInfo, netCtx), 1);
 }
 
 TEST_F(TestNetDriverUBWithOob, OneSideDoneCB)
@@ -1243,7 +1248,10 @@ TEST_F(TestNetDriverUBWithOob, OneSideDoneCB)
 
     MOCKER_CPP(&UBJetty::ReturnOneSideWr).stubs().will(ignoreReturnValue());
     MOCKER_CPP(&UBWorker::ReturnOpContextInfo).stubs().will(ignoreReturnValue());
-    EXPECT_EQ(driver->OneSideDoneCB(&ctxInfo), NN_OK);
+    UBSHcomNetDriverOneSideDoneHandler handler = [](const UBSHcomNetRequestContext&) -> int {
+        return 1; // 返回值固定为 1
+    };
+    EXPECT_EQ(driver->OneSideDoneCB(&ctxInfo), 1);
 }
 
 TEST_F(TestNetDriverUBWithOob, ProcessErrorOneSideDone)

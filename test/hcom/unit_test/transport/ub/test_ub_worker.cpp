@@ -436,6 +436,16 @@ TEST_F(TestUbWorker, PostSendCtxFull)
     EXPECT_EQ(worker->PostSend(qp, req, nullptr, 0), UB_QP_CTX_FULL);
 }
 
+TEST_F(TestUbWorker, PostSendMemcpyFail)
+{
+    UBSendReadWriteRequest req{};
+    req.upCtxSize = 1;
+    MOCKER_CPP(&UBJetty::GetPostSendWr).stubs().will(returnValue(true));
+    MOCKER_CPP(&memcpy_s).stubs().will(returnValue(1));
+
+    EXPECT_EQ(worker->PostSend(qp, req, nullptr, 0), UB_ERROR);
+}
+
 TEST_F(TestUbWorker, PostSend)
 {
     UBSendReadWriteRequest req{};
@@ -531,6 +541,17 @@ TEST_F(TestUbWorker, PostReadParamErr)
     EXPECT_EQ(worker->PostRead(qp, req), UB_QP_ONE_SIDE_WR_FULL);
 }
 
+TEST_F(TestUbWorker, PostReadMemcpyFail)
+{
+    UBSendReadWriteRequest req{};
+    req.upCtxSize = 1;
+    MOCKER_CPP(&UBJetty::GetOneSideWr).stubs().will(returnValue(true));
+    MOCKER_CPP(&UBJetty::GetProtocol).stubs().will(returnValue(UBSHcomNetDriverProtocol::UBC));
+    MOCKER_CPP(&memcpy_s).stubs().will(returnValue(1));
+
+    EXPECT_EQ(worker->PostRead(qp, req), UB_ERROR);
+}
+
 TEST_F(TestUbWorker, PostRead)
 {
     UBSendReadWriteRequest req{};
@@ -570,6 +591,17 @@ TEST_F(TestUbWorker, PostWriteCtxFull)
     UBOpContextInfo *testPool = nullptr;
     MOCKER_CPP(&UBOpContextInfoPool::Get).stubs().will(returnValue(testPool));
     EXPECT_EQ(worker->PostWrite(qp, req), UB_QP_CTX_FULL);
+}
+
+TEST_F(TestUbWorker, PostWriteMemcpyFail)
+{
+    UBSendReadWriteRequest req{};
+    req.upCtxSize = 1;
+    MOCKER_CPP(&UBJetty::GetOneSideWr).stubs().will(returnValue(true));
+    MOCKER_CPP(&UBJetty::GetProtocol).stubs().will(returnValue(UBSHcomNetDriverProtocol::UBC));
+    MOCKER_CPP(&memcpy_s).stubs().will(returnValue(1));
+
+    EXPECT_EQ(worker->PostWrite(qp, req), UB_ERROR);
 }
 
 TEST_F(TestUbWorker, PostWrite)

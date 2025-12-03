@@ -502,6 +502,25 @@ TEST_F(TestNetChannelImp, TestSyncCallWithSelfPoll)
     ASSERT_EQ(channel->SyncCallWithSelfPoll(req, rsp), SER_INVALID_PARAM);
 }
 
+TEST_F(TestNetChannelImp, TestSyncCallWithSelfPollFail)
+{
+    channel->mOptions.selfPoll = true;
+    UBSHcomResponse rsp{};
+    ASSERT_EQ(channel->Initialize(epVector, reinterpret_cast<uintptr_t>(ctxMemPool.Get()),
+        reinterpret_cast<uintptr_t>(mPeriodicMgr.Get()), reinterpret_cast<uintptr_t>(mPgtable.Get())),
+        SER_OK);
+    channel->mUserSplitSendThreshold = NN_NO10;
+    channel->mProtocol = UBC;
+    UBSHcomRequest req(data, NN_NO20, 0);
+
+    MOCKER_CPP(&HcomChannelImp::SyncCallSplitWithSelfPoll)
+        .stubs()
+        .will(returnValue(static_cast<int>(SER_INVALID_PARAM)))
+        .then(returnValue(static_cast<int>(SER_OK)));
+
+    ASSERT_EQ(channel->SyncCallWithSelfPoll(req, rsp), SER_INVALID_PARAM);
+}
+
 TEST_F(TestNetChannelImp, TestAsyncCallInner)
 {
     channel->mOptions.selfPoll = false;
@@ -1258,6 +1277,37 @@ TEST_F(TestNetChannelImp, TestSetTraceId)
     EXPECT_NO_FATAL_FAILURE(channel->SetTraceId(traceId));
     EXPECT_NO_FATAL_FAILURE(channel->SetTraceId(traceId));
 #endif
+}
+
+TEST_F(TestNetChannelImp, TestSyncSpliceMessageOne)
+{
+    auto tmpEp = ep.Get();
+    std::string acc;
+    void *data;
+    uint32_t dataLen;
+    UBSHcomNetResponseContext ctx;
+    UBSHcomNetTransHeader mHeader;
+    mHeader.extHeaderType = UBSHcomExtHeaderType::FRAGMENT;
+    ctx.mHeader = mHeader;
+
+    UBSHcomFragmentHeader fHeader;
+    fHeader.offset = NN_NO100;
+    fHeader.totalLength = NN_NO200;
+    acc.resize(NN_NO300);
+    UBSHcomNetMessage message {};
+    message.mBuf = &fHeader;
+    message.mDataLen = NN_NO200;
+    ctx.mMessage = &message;
+
+    MOCKER_CPP_VIRTUAL(*(ep.Get()), &UBSHcomNetEndpoint::Receive,
+        SerResult(UBSHcomNetEndpoint::*)(int32_t, UBSHcomNetResponseContext&))
+        .stubs()
+        .will(returnValue(static_cast<int>(SER_OK)));
+    
+    EXPECT_EQ(SyncSpliceMessage(ctx, tmpEp, 1, acc, data, dataLen), SER_SPLIT_INVALID_MSG);
+
+    message.mBuf = nullptr;
+    ctx.mMessage = nullptr;
 }
 
 }  // namespace HCOM
