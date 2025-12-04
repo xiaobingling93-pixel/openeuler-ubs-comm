@@ -525,6 +525,7 @@ TEST_F(TestNetRdmaDriverOob, Connect2)
     MOCKER(OOBTCPClient::ConnectWithFd, NResult(const std::string &, int &)).stubs().will(returnValue(0));
     MOCKER(::recv).stubs().will(invoke(MockRecv));
     MOCKER(::send).stubs().will(invoke(MockSend));
+    testDriver->mOptions.secType = NET_SEC_DISABLED;
     EXPECT_EQ(testDriver->ConnectSyncEp(client, payload, outEp, 0, 0, 0), RR_PARAM_INVALID);
 }
 
@@ -536,6 +537,7 @@ TEST_F(TestNetRdmaDriverOob, Connect3)
     OOBTCPClientPtr client = new (std::nothrow) OOBTCPClient(ip, 1);
     ASSERT_NE(client.Get(), nullptr);
     client->mOobType = NET_OOB_UDS;
+    testDriver->mOptions.secType = NET_SEC_DISABLED;
     RDMASyncEndpoint *rep = new (std::nothrow) RDMASyncEndpoint(ip, nullptr, BUSY_POLLING, nullptr, nullptr, 0);
     ASSERT_NE(rep, nullptr);
     testDriver->mOptions.enableMultiRail = true;
@@ -559,6 +561,7 @@ TEST_F(TestNetRdmaDriverOob, Connect4)
     RDMASyncEndpoint *rep = new (std::nothrow) RDMASyncEndpoint(ip, nullptr, BUSY_POLLING, nullptr, nullptr, 0);
     ASSERT_NE(rep, nullptr);
     testDriver->mOptions.enableMultiRail = true;
+    testDriver->mOptions.secType = NET_SEC_DISABLED;
     MOCKER(OOBTCPClient::ConnectWithFd, NResult(const std::string &, int &)).stubs().will(returnValue(0));
     MOCKER(::recv).stubs().will(invoke(MockRecv));
     MOCKER(::send).stubs().will(invoke(MockSend));

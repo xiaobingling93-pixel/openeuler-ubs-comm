@@ -661,11 +661,11 @@ NResult NetDriverUBWithOob::FillExchMsg(JettyConnHeader *exchangeInfo, UBJetty *
     exchangeInfo->info.receiveSegCount = mOptions.prePostReceiveSizePerQP;
     if (mHeartBeat != nullptr) {
         if ((result = qp->CreateHBMemoryRegion(NN_NO128, qp->mHBLocalMr)) != NN_OK) {
-            NN_LOG_ERROR("Failed to create mr for local HB in client, result " << result);
+            NN_LOG_ERROR("Failed to create mr for local HB, result: " << result);
             return result;
         }
         if ((result = qp->CreateHBMemoryRegion(NN_NO128, qp->mHBRemoteMr)) != NN_OK) {
-            NN_LOG_ERROR("Failed to create mr for remote HB, result " << result);
+            NN_LOG_ERROR("Failed to create mr for remote HB, result: " << result);
             qp->DestroyHBMemoryRegion(qp->mHBLocalMr);
             return result;
         }
@@ -673,8 +673,12 @@ NResult NetDriverUBWithOob::FillExchMsg(JettyConnHeader *exchangeInfo, UBJetty *
         exchangeInfo->info.isNeedSendHb = true;
     }
     if ((result = qp->FillExchangeInfo(exchangeInfo->info)) != 0) {
-        NN_LOG_ERROR("Failed to get or send ep exchange info in Driver " << mName << ", result " << result);
+        NN_LOG_ERROR("Failed to get or send ep exchange info in Driver " << mName << ", result: " << result);
         return result;
+    }
+    if (payload.size() >= NN_NO1024) {
+        NN_LOG_ERROR("Failed to copy data as payload is too long " << payload.size());
+        return NN_ERROR;
     }
     if (NN_UNLIKELY(memcpy_s(exchangeInfo->payload, NN_NO1024, payload.c_str(), payload.size())
         != NN_OK)) {

@@ -113,6 +113,8 @@ UResult UBWorker::PostSend(UBJetty *qp, const UBSendReadWriteRequest &req, urma_
     ctx->upCtxSize = req.upCtxSize;
     if (req.upCtxSize > 0  && NN_UNLIKELY(memcpy_s(ctx->upCtx, NN_NO16, req.upCtxData, req.upCtxSize) != UB_OK)) {
         NN_LOG_ERROR("Failed to copy req to ctx");
+        qp->ReturnPostSendWr();
+        mOpCtxInfoPool.Return(ctx);
         return UB_ERROR;
     }
     qp->IncreaseRef();
@@ -296,6 +298,8 @@ UResult UBWorker::PostRead(UBJetty *qp, const UBSendReadWriteRequest &req)
     ctx->upCtxSize = req.upCtxSize;
     if (req.upCtxSize > 0 && NN_UNLIKELY(memcpy_s(ctx->upCtx, NN_NO16, req.upCtxData, req.upCtxSize) != UB_OK)) {
         NN_LOG_ERROR("Failed to copy req to ctx");
+        qp->ReturnOneSideWr();
+        mOpCtxInfoPool.Return(ctx);
         return UB_ERROR;
     }
     qp->IncreaseRef();
@@ -450,6 +454,8 @@ UResult UBWorker::PostWrite(UBJetty *qp, const UBSendReadWriteRequest &req, UBOp
     ctx->upCtxSize = req.upCtxSize;
     if (req.upCtxSize > 0 && NN_UNLIKELY(memcpy_s(ctx->upCtx, NN_NO16, req.upCtxData, req.upCtxSize) != UB_OK)) {
         NN_LOG_ERROR("Failed to copy req to ctx");
+        qp->ReturnOneSideWr();
+        mOpCtxInfoPool.Return(ctx);
         return UB_ERROR;
     }
     qp->IncreaseRef();

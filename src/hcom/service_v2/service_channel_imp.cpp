@@ -1262,7 +1262,9 @@ SerResult HcomChannelImp::SyncCallWithSelfPoll(const UBSHcomRequest &req, UBSHco
 
     const uint32_t fragmentNum = EstimateFragmentNum(req.size);
     if (fragmentNum > 1) {
-        return SyncCallSplitWithSelfPoll(ep, req, fragmentNum, index, rsp);
+        ret = SyncCallSplitWithSelfPoll(ep, req, fragmentNum, index, rsp);
+        ReleaseSelfPollEp(index);
+        return ret;
     }
 
     UBSHcomNetTransRequest transReq(req.address, req.size, 0);
@@ -1381,7 +1383,6 @@ SerResult HcomChannelImp::SyncCallSplitWithSelfPoll(UBSHcomNetEndpoint *&ep, con
 
     // 对端回复的每一个小包，它们的 Header() 都是相同的.
     result = SyncCallbackWithSelfPoll(data, dataLen, ctx.Header(), rsp);
-    ReleaseSelfPollEp(index);
     if (NN_UNLIKELY(result != SER_OK)) {
         return result;
     }

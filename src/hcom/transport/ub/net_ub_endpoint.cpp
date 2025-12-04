@@ -163,6 +163,7 @@ namespace hcom {
             if (NN_UNLIKELY(memcpy_s(reinterpret_cast<void *>(tmpBuff + iovOffset), request.iov[i].size,   \
                 reinterpret_cast<const void *>(request.iov[i].lAddress), request.iov[i].size) != NN_OK)) { \
                 NN_LOG_ERROR("Failed to copy request to buff");                                            \
+                (void)(mDriver)->mDriverSendMR->ReturnBuffer(tmpBuff);                                     \
                 return NN_ERROR;                                                                           \
             }                                                                                              \
             iovOffset += request.iov[i].size;                                                              \
@@ -242,10 +243,10 @@ NetUBAsyncEndpoint::NetUBAsyncEndpoint(uint64_t id, UBJetty *qp, NetDriverUBWith
 
 NetUBAsyncEndpoint::~NetUBAsyncEndpoint()
 {
-    // jetty 析构时要求 worker、driver都存活
+    // jetty 析构时要求 worker、driver 都存活
     if (mJetty != nullptr) {
         // 当 EP 析构时，说明它不再被用户使用、已经从全局 EP 表中被删除、上层的 channel 也被 DelayEraseChannel 真正删除。
-        // 如果存在 UBJetty 的 PostedCount > 0，说明存在过在 FLUSH_ERR_DONE 之后用户绕过了 EP 和 jetty 的状态检查进行
+        // 如果存在 UBJetty 的 PostedCount > 0, 说明存在过在 FLUSH_ERR_DONE 之后用户绕过了 EP 和 jetty 的状态检查进行
         // post 的情况。
         //
         // \see NetDriverUBWithOob::ProcessEpError
@@ -302,6 +303,7 @@ NResult NetUBAsyncEndpoint::PostSend(uint16_t opCode, const UBSHcomNetTransReque
         if (NN_UNLIKELY(memcpy_s(reinterpret_cast<void *>(mrBufAddress + sizeof(UBSHcomNetTransHeader)),
             request.size, reinterpret_cast<const void *>(request.lAddress), request.size) != NN_OK)) {
             NN_LOG_ERROR("Failed to async post send with seq no as memcpy fail");
+            mDriver->mDriverSendMR->ReturnBuffer(mrBufAddress);
             return NN_ERROR;
         }
     }
@@ -376,6 +378,7 @@ NResult NetUBAsyncEndpoint::PostSend(uint16_t opCode, const UBSHcomNetTransReque
         if (NN_UNLIKELY(memcpy_s(reinterpret_cast<void *>(mrBufAddress + sizeof(UBSHcomNetTransHeader)),
             request.size, reinterpret_cast<const void *>(request.lAddress), request.size) != NN_OK)) {
             NN_LOG_ERROR("Failed to async post send with op info as memcpy fail");
+            mDriver->mDriverSendMR->ReturnBuffer(mrBufAddress);
             return NN_ERROR;
         }
     }
@@ -868,6 +871,7 @@ NResult NetUBSyncEndpoint::PostSend(uint16_t opCode, const UBSHcomNetTransReques
         if (NN_UNLIKELY(memcpy_s(reinterpret_cast<void *>(mrBufAddress + sizeof(UBSHcomNetTransHeader)),
             request.size, reinterpret_cast<const void *>(request.lAddress), request.size) != NN_OK)) {
             NN_LOG_ERROR("Failed to sync post send with seq no as memcpy fail");
+            mDriver->mDriverSendMR->ReturnBuffer(mrBufAddress);
             return NN_ERROR;
         }
     }
@@ -946,6 +950,7 @@ NResult NetUBSyncEndpoint::PostSend(uint16_t opCode, const UBSHcomNetTransReques
         if (NN_UNLIKELY(memcpy_s(reinterpret_cast<void *>(mrBufAddress + sizeof(UBSHcomNetTransHeader)),
             request.size, reinterpret_cast<const void *>(request.lAddress), request.size) != NN_OK)) {
             NN_LOG_ERROR("Failed to sync post send with op info as memcpy fail");
+            mDriver->mDriverSendMR->ReturnBuffer(mrBufAddress);
             return NN_ERROR;
         }
     }

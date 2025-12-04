@@ -437,6 +437,7 @@ NResult NetDriverSockWithOOB::Start()
     if (mStartOobSvr) {
         if (mNewEndPointHandler == nullptr) {
             NN_LOG_ERROR("Sock failed to do start in Driver " << mName << ", as newEndPointerHandler is null");
+            ClearWorkers();
             return NN_INVALID_PARAM;
         }
         for (auto &oobServer : mOobServers) {
@@ -1398,6 +1399,47 @@ NResult NetDriverSockWithOOB::HandleNewRequest(SockOpContextInfo &ctx)
     return NN_OK;
 }
 
+NResult NetDriverSockWithOOB::HandleSendRawSglReqPosted(SockOpContextInfo *ctx, UBSHcomNetRequestContext &netCtx)
+{
+    NResult result = NN_OK;
+    auto sglCtx = ctx->sendCtx;
+
+    // set context
+    netCtx.mOpType = UBSHcomNetRequestContext::NN_SENT_RAW_SGL;
+    netCtx.mEp.Set(reinterpret_cast<UBSHcomNetEndpoint *>(ctx->sock->UpContext()));
+    netCtx.mResult = SockOpContextInfo::GetNResult(ctx->errType);
+    netCtx.mHeader.Invalid();
+    netCtx.mMessage = nullptr;
+    if (NN_UNLIKELY(memcpy_s(netCtx.iov, sizeof(UBSHcomNetTransSgeIov) * NET_SGE_MAX_IOV, sglCtx->iov,
+        sizeof(UBSHcomNetTransSgeIov) * sglCtx->iovCount) != NN_OK)) {
+        NN_LOG_ERROR("Failed to copy req to sglCtx");
+        result = NN_INVALID_PARAM;
+    }
+
+    netCtx.mOriginalSglReq.iov = netCtx.iov;
+    netCtx.mOriginalSglReq.upCtxSize = ctx->upCtxSize;
+    netCtx.mOriginalSglReq.iovCount = sglCtx->iovCount;
+    if (netCtx.mOriginalSglReq.upCtxSize > 0 &&
+        netCtx.mOriginalSglReq.upCtxSize <= sizeof(UBSHcomNetTransSglRequest::upCtxData)) {
+        if (NN_UNLIKELY(memcpy_s(netCtx.mOriginalSglReq.upCtxData, NN_NO16, ctx->upCtx, ctx->upCtxSize) != NN_OK)) {
+            NN_LOG_ERROR("Failed to copy ctx to netCtx");
+            result = NN_INVALID_PARAM;
+        }
+    }
+
+    // call to callback
+    if (result == NN_OK && NN_UNLIKELY((result = mRequestPostedHandler(netCtx)) != NN_OK)) {
+        NN_LOG_ERROR("Call requestPostedHandler in Driver " << mName <<
+            " return non-zero for receive message [opCode: " << netCtx.mHeader.opCode << ", dataSize " <<
+            netCtx.mHeader.dataLength << "]");
+    }
+    netCtx.mEp.Set(nullptr);
+    ctx->sock->mSglCtxInfoPool.Return(ctx->sendCtx);
+    ctx->sendCtx = nullptr;
+
+    return result;
+}
+
 NResult NetDriverSockWithOOB::HandleReqPosted(SockOpContextInfo *ctx)
 {
     NN_ASSERT_LOG_RETURN(ctx != nullptr, NN_ERROR)
@@ -1412,14 +1454,14 @@ NResult NetDriverSockWithOOB::HandleReqPosted(SockOpContextInfo *ctx)
                 if (NN_UNLIKELY(memcpy_s(&(netCtx.mHeader), sizeof(UBSHcomNetTransHeader),
                     &ctx->headerRequest->sendHeader, sizeof(UBSHcomNetTransHeader)) != NN_OK)) {
                     NN_LOG_ERROR("Failed to copy req to sglCtx");
-                    return NN_INVALID_PARAM;
+                    result = NN_INVALID_PARAM;
                 }
             } else {
                 if (NN_UNLIKELY(memcpy_s(&(netCtx.mHeader), sizeof(UBSHcomNetTransHeader),
                     reinterpret_cast<UBSHcomNetTransHeader *>(ctx->sendBuff),
                     sizeof(UBSHcomNetTransHeader)) != NN_OK)) {
                     NN_LOG_ERROR("Failed to copy req to sglCtx");
-                    return NN_INVALID_PARAM;
+                    result = NN_INVALID_PARAM;
                 }
             }
         } else {
@@ -1440,12 +1482,12 @@ NResult NetDriverSockWithOOB::HandleReqPosted(SockOpContextInfo *ctx)
             netCtx.mOriginalReq.upCtxSize <= sizeof(UBSHcomNetTransRequest::upCtxData)) {
             if (NN_UNLIKELY(memcpy_s(netCtx.mOriginalReq.upCtxData, NN_NO16, ctx->upCtx, ctx->upCtxSize) != NN_OK)) {
                 NN_LOG_ERROR("Failed to copy ctx to netCtx");
-                return NN_INVALID_PARAM;
+                result = NN_INVALID_PARAM;
             }
         }
 
         // call to callback
-        if (NN_UNLIKELY((result = mRequestPostedHandler(netCtx)) != NN_OK)) {
+        if (result == NN_OK && NN_UNLIKELY((result = mRequestPostedHandler(netCtx)) != NN_OK)) {
             NN_LOG_ERROR("Call requestPostedHandler in Driver " << mName <<
                 " return non-zero for receive message [opCode: " << netCtx.mHeader.opCode
                 << ", dataSize " << netCtx.mHeader.dataLength << "]");
@@ -1455,40 +1497,7 @@ NResult NetDriverSockWithOOB::HandleReqPosted(SockOpContextInfo *ctx)
             ctx->sock->mSockDriverSendMR->ReturnBuffer(reinterpret_cast<uintptr_t>(ctx->sendBuff));
         }
     } else if (ctx->opType == SockOpContextInfo::SS_SEND_RAW_SGL) {
-        auto sglCtx = ctx->sendCtx;
-
-        // set context
-        netCtx.mOpType = UBSHcomNetRequestContext::NN_SENT_RAW_SGL;
-        netCtx.mEp.Set(reinterpret_cast<UBSHcomNetEndpoint *>(ctx->sock->UpContext()));
-        netCtx.mResult = SockOpContextInfo::GetNResult(ctx->errType);
-        netCtx.mHeader.Invalid();
-        netCtx.mMessage = nullptr;
-        if (NN_UNLIKELY(memcpy_s(netCtx.iov, sizeof(UBSHcomNetTransSgeIov) * NET_SGE_MAX_IOV, sglCtx->iov,
-            sizeof(UBSHcomNetTransSgeIov) * sglCtx->iovCount) != NN_OK)) {
-            NN_LOG_ERROR("Failed to copy req to sglCtx");
-            return NN_INVALID_PARAM;
-        }
-
-        netCtx.mOriginalSglReq.iov = netCtx.iov;
-        netCtx.mOriginalSglReq.upCtxSize = ctx->upCtxSize;
-        netCtx.mOriginalSglReq.iovCount = sglCtx->iovCount;
-        if (netCtx.mOriginalSglReq.upCtxSize > 0 &&
-            netCtx.mOriginalSglReq.upCtxSize <= sizeof(UBSHcomNetTransSglRequest::upCtxData)) {
-            if (NN_UNLIKELY(memcpy_s(netCtx.mOriginalSglReq.upCtxData, NN_NO16, ctx->upCtx, ctx->upCtxSize) != NN_OK)) {
-                NN_LOG_ERROR("Failed to copy ctx to netCtx");
-                return NN_INVALID_PARAM;
-            }
-        }
-
-        // call to callback
-        if (NN_UNLIKELY((result = mRequestPostedHandler(netCtx)) != NN_OK)) {
-            NN_LOG_ERROR("Call requestPostedHandler in Driver " << mName <<
-                " return non-zero for receive message [opCode: " << netCtx.mHeader.opCode << ", dataSize " <<
-                netCtx.mHeader.dataLength << "]");
-        }
-        netCtx.mEp.Set(nullptr);
-        ctx->sock->mSglCtxInfoPool.Return(ctx->sendCtx);
-        ctx->sendCtx = nullptr;
+        return HandleSendRawSglReqPosted(ctx, netCtx);
     } else {
         NN_LOG_WARN("Unreachable path");
     }
@@ -1497,7 +1506,7 @@ NResult NetDriverSockWithOOB::HandleReqPosted(SockOpContextInfo *ctx)
         ctx->headerRequest = nullptr;
     }
     ctx = nullptr;
-    return NN_OK;
+    return result;
 }
 
 NResult NetDriverSockWithOOB::OneSideDone(SockOpContextInfo *ctx)
@@ -1528,7 +1537,7 @@ NResult NetDriverSockWithOOB::OneSideDone(SockOpContextInfo *ctx)
             netCtx.mOriginalReq.upCtxSize <= sizeof(UBSHcomNetTransRequest::upCtxData)) {
             if (NN_UNLIKELY(memcpy_s(netCtx.mOriginalReq.upCtxData, NN_NO16, ctx->upCtx, ctx->upCtxSize) != NN_OK)) {
                 NN_LOG_ERROR("failed to copy ctx to upCtxData");
-                return NN_INVALID_PARAM;
+                result = NN_INVALID_PARAM;
             }
         }
 
@@ -1537,7 +1546,7 @@ NResult NetDriverSockWithOOB::OneSideDone(SockOpContextInfo *ctx)
         worker->ReturnOpContextInfo(ctx);
 
         // called to callback
-        if (NN_UNLIKELY((result = mOneSideDoneHandler(netCtx)) != NN_OK)) {
+        if (result == NN_OK && NN_UNLIKELY((result = mOneSideDoneHandler(netCtx)) != NN_OK)) {
             NN_LOG_ERROR("Call oneSideDoneHandler in Driver " << mName << " return non-zero for buff done");
         }
         netCtx.mEp.Set(nullptr);
@@ -1553,7 +1562,7 @@ NResult NetDriverSockWithOOB::OneSideDone(SockOpContextInfo *ctx)
         if (NN_UNLIKELY(memcpy_s(netCtx.iov, sizeof(UBSHcomNetTransSgeIov) * NET_SGE_MAX_IOV,
             sglCtx->iov, sizeof(UBSHcomNetTransSgeIov) * sglCtx->iovCount) != NN_OK)) {
             NN_LOG_ERROR("Failed to copy req to sglCtx");
-            return NN_INVALID_PARAM;
+            result = NN_INVALID_PARAM;
         }
         netCtx.mOriginalSglReq.iov = netCtx.iov;
         netCtx.mOriginalSglReq.iovCount = sglCtx->iovCount;
@@ -1562,13 +1571,13 @@ NResult NetDriverSockWithOOB::OneSideDone(SockOpContextInfo *ctx)
             netCtx.mOriginalSglReq.upCtxSize <= sizeof(UBSHcomNetTransSglRequest::upCtxData)) {
             if (NN_UNLIKELY(memcpy_s(netCtx.mOriginalSglReq.upCtxData, NN_NO16, ctx->upCtx, ctx->upCtxSize) != NN_OK)) {
                 NN_LOG_ERROR("Failed to copy ctx to netCtx");
-                return NN_INVALID_PARAM;
+                result = NN_INVALID_PARAM;
             }
         }
         worker->ReturnSglContextInfo(sglCtx);
         worker->ReturnOpContextInfo(ctx);
         // called to callback
-        if (NN_UNLIKELY((result = mOneSideDoneHandler(netCtx)) != NN_OK)) {
+        if (result == NN_OK && NN_UNLIKELY((result = mOneSideDoneHandler(netCtx)) != NN_OK)) {
             NN_LOG_ERROR("Call oneSideDoneHandler in Driver " << mName << " return non-zero for sgl type done");
         }
         netCtx.mEp.Set(nullptr);
@@ -1576,7 +1585,7 @@ NResult NetDriverSockWithOOB::OneSideDone(SockOpContextInfo *ctx)
         NN_LOG_WARN("Unreachable path");
     }
 
-    return NN_OK;
+    return result;
 }
 
 NResult NetDriverSockWithOOB::HandleEpClose(Sock *sock)
