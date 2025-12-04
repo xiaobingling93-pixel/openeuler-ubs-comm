@@ -146,9 +146,10 @@ TEST_F(TestNetHeartbeat, DetectSingleEpHbStateWithOUTBrokenEp)
         EXPECT_EQ(ep->State().Compare(NEP_BROKEN), true);
 }
 
+#ifdef UB_BUILD_ENABLED
 TEST_F(TestNetHeartbeat, DetectSingleEpHbStateUBCInvalidParam)
 {
-    NetEndpoint *ep = nullptr;
+    UBSHcomNetEndpoint *ep = nullptr;
     UBSHcomNetTransRequest req {};
     EXPECT_NO_FATAL_FAILURE(mUbcHb->DetectSingleEpHbState(dynamic_cast<NetUBAsyncEndpoint *>(ep),
                                                           dynamic_cast<NetDriverUBWithOob *>(mUbcDriver), req,
@@ -158,7 +159,7 @@ TEST_F(TestNetHeartbeat, DetectSingleEpHbStateUBCInvalidParam)
 TEST_F(TestNetHeartbeat, DetectSingleEpHbStateUBCWithBrokenEp)
 {
     UBJetty *jetty = nullptr;
-    NetEndpoint *ep = new NetUBAsyncEndpoint(0, jetty, (NetDriverUBWithOob *)mUbcDriver, nullptr);
+    UBSHcomNetEndpoint *ep = new NetUBAsyncEndpoint(0, jetty, (NetDriverUBWithOob *)mUbcDriver, nullptr);
 
     UBSHcomNetTransRequest req {};
     MOCKER_CPP(&NetUBAsyncEndpoint::checkTargetHbTime).stubs().will(returnValue(true));
@@ -169,5 +170,6 @@ TEST_F(TestNetHeartbeat, DetectSingleEpHbStateUBCWithBrokenEp)
                                                           dynamic_cast<NetDriverUBWithOob *>(mUbcDriver), req,
                                                           UBOpContextInfo::HB_WRITE));
 }
+#endif
 }
 }

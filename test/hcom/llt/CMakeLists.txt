@@ -41,6 +41,7 @@ endif ()
 
 # collect hcom source files
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom)
+include_directories(${CMAKE_SOURCE_DIR}/src/hcom/)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/service_v2)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/service_v2/api)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/common)
@@ -55,8 +56,9 @@ aux_source_directory(service_v2 SOURCE_FILES)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/under_api/verbs)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/under_api/openssl)
 include_directories(${CMAKE_SOURCE_DIR}/src/hcom/under_api/urma)
-include_directories(${CMAKE_SOURCE_DIR}/tmp_build_dir/_deps/umdk-src/src/urma/lib/urma/core/include)
-include_directories(${CMAKE_SOURCE_DIR}/tmp_build_dir/_deps/umdk-src/src/urma/lib/urma/bond/include)
+include_directories(${HCOM_OUTPUT_PATH}/hcom_3rdparty/umdk/urma/include)
+include_directories(${HCOM_OUTPUT_PATH}/hcom_3rdparty/libboundscheck/include)
+
 file(GLOB_RECURSE SOURCE_FILES
     ${CMAKE_SOURCE_DIR}/src/hcom/*.cpp
     ${CMAKE_SOURCE_DIR}/src/hcom/*.h)
@@ -87,6 +89,7 @@ if (NOT EXISTS ${MOCKCPP_INSTALL_DIR})
 endif()
 include_directories(${MOCKCPP_INSTALL_DIR}/include)
 link_directories(${MOCKCPP_INSTALL_DIR}/lib)
+link_directories(${HCOM_OUTPUT_PATH}/hcom_3rdparty/libboundscheck/lib/)
 
 # enable gcov
 add_compile_options(-ftest-coverage -fprofile-arcs)

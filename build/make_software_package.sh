@@ -139,8 +139,8 @@ echo "${HCOM_LOG_TAG} generate HCOM version info done"
 tar -czf "${HCOM_PACKAGE_NAME}.tar.gz" "${HCOM_PACKAGE_NAME}" 
 echo "${HCOM_LOG_TAG} make HCOM software package done.(${HCOM_PACKAGE_PATH}/${HCOM_PACKAGE_NAME}.tar.gz)"
 
-# check whether enable build rpm, default is ON.
-if [[ "${HCOM_BUILD_RPM,,}" == "off" ]]; then
+# check whether enable build rpm, default is off.
+if [[ "${HCOM_BUILD_RPM,,}" != "ON" ]]; then
     exit 0
 fi
 
