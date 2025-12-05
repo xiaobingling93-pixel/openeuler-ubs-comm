@@ -1,29 +1,64 @@
-# 编译
-当前需要集成在umdk-urpc中编译，后续再做编译整改。
+# UBSocket
 
-## 编译urpc
-```
-# 下载umdk源码，使用master分支即可
-git clone https://gitee.com/openeuler/umdk.git
+`UBSocket`是一个基于UB网络无损适配`Socket API`接口的高性能通信库。通过使用`UBSocket`，用户无需修改原有基于`Socket API`开发的代码，即可基于UB网络进行通信加速。
 
-cd umdk/src
-mkdir build && cd build
-# 仅编译urpc
-cmake -DBUILD_URPC=enable -DBUILD_ALL=disable ..
-make -j32
+## 1 简介
+
+UB是一种面向超节点的互联协议，将IO、内存访问和各类处理单元件的通信统一在同一互联技术体系，实现高性能数据搬移、资源同一管理、资源灵活组合、处理单元间高效协同和高效编程，具有高性能、低时延等特性。当前诸多业务基于传统`Socket API`进行开发，而转换为UB组网，原有业务需要基于UB接口进行二次开发，业务环境组网多种多样，适配开发工作量大。基于上述情况，提供`UBSocket`高性能通信库，无需修改原有业务代码，即可基于UB网络进行加速。
+
+## 2 环境要求
+
+高性能通信库`UBSocket`将`Socket`连接转化成UB连接，从而达到高性能、低时延的目的，因此需要节点间为UB组网并且节点间UB协议通信正常。同时环境上需安装`UMQ`动态库的标准安装包。
+
+## 3 源码下载
+
+```shell
+$ git clone <ubs-comm-repo-url>
 ```
 
-## 编译adapter
-在编译adapter前，需安装[libboundscheck](https://gitee.com/openeuler/libboundscheck.git)，其提供了securec能力。
-Euler系统上使用`yum install libboundscheck`命令安装即可，其它系统可能要源码安装。
+## 4 源码目录结构
 
+`UBSocket`源码位于`ubs-comm`目录下，如下所示：
+
+```shell
+.
+├── build
+├── doc
+├── src
+    ├── hcom      // hcom通信库源码
+    ├── ubsocket  // ubsocket通信库源码
+├── test
+└── build.sh
 ```
-# adapter代码需要放到指定位置
-cd umdk/src/urpc/
-git clone https://gitee.com/fanzhaonan/brpc_adaptor.git
-# 重新编译urpc
-cd umdk/src/build
-rm -rf *
-cmake -DBUILD_URPC=enable -DBUILD_ALL=disable ..
-make -j32
+
+## 5 编译
+
+`UBSocket`在源码目录下提供CMakeLists进行编译，具体编译流程如下：
+
+```shell
+$ cd ./src/ubsocket
+$ mkdir build && cd build
+$ cmake ..
+$ make -j8
 ```
+
+编译后在`build/brpc`路径下可以找到一个名为`librpc_adapter_brpc.so`的动态库，即为UBSocket高性能通信库。
+
+## 6 使用说明
+
+在运行程序前通过LD_PRELOAD方式加载此通信库，将Socket API转换为UB网络的通信API，如下所示：
+```shell
+$ env LD_PRELOAD=/path/to/lib/librpc_adapter_brpc.so RPC_ADPT_TRANS_MODE=UB RPC_ADPT_DEV_NAME="udma2" RPC_ADPT_LOG_LEVEL=info RPC_ADPT_TX_DEPTH=2048 RPC_ADPT_RX_DEPTH=2048 RPC_ADPT_READV_UNLIMITED=true RPC_ADPT_BLOCK_TYPE="large" RPC_ADPT_POOL_INITIAL_SIZE=4096 ./your_program
+```
+UBSocket通过环境变量配置通信库的各种属性
+
+| 环境变量 | 含义 |
+| :--- | :--- |
+| RPC_ADPT_TRANS_MODE | 协议模式 |
+| RPC_ADPT_DEV_NAME | 设备名称 |
+| RPC_ADPT_LOG_LEVEL | 日志级别 |
+| RPC_ADPT_TX_DEPTH | 发送队列深度 |
+| RPC_ADPT_RX_DEPTH | 接受队列深度 |
+| RPC_ADPT_READV_UNLIMITED | 是否打开readv上报限制 |
+| RPC_ADPT_BLOCK_TYPE | 内存池的最小分片 |
+| RPC_ADPT_POOL_INITIAL_SIZE | IO内存的总大小，应用按需配置 |
