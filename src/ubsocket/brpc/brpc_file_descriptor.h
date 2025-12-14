@@ -1603,11 +1603,11 @@ private:
             RPC_ADPT_VLOG_ERR("Failed to find umq dev\n");
             return -1;
         }
-        
-        if(mEidRegistry.IsRegisteredEid(*srcEid)) {
+
+        if (mEidRegistry.IsRegisteredEid(*dstEid)) {
             return 0;
         }
-        
+
         for(uint32_t i = 0;i< route_list.len; ++i){
             umq_trans_info_t trans_info;
             trans_info.trans_mode = UMQ_TRANS_MODE_UB;
@@ -1620,7 +1620,7 @@ private:
             }
         }
 
-        mEidRegistry.RegisterEid(*srcEid);
+        mEidRegistry.RegisterEid(*dstEid);
         return 0;
     }
 
