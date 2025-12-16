@@ -1218,9 +1218,9 @@ NResult NetDriverSockWithOOB::HandleSockError(Sock *sock)
 
     // UBWorker 线程与心跳线程只会有一个成功
     bool process = false;
-    if (NN_UNLIKELY(!endpointPtr->EPBrokenProcessed().compare_exchange_strong(process, true))) {
-        NN_LOG_WARN("Ep id " << endpointPtr->Id() << " broken handled by other thread");
-        return;
+    if (NN_UNLIKELY(!brokenEp->EPBrokenProcessed().compare_exchange_strong(process, true))) {
+        NN_LOG_WARN("Ep id " << brokenEp->Id() << " broken handled by other thread");
+        return NN_EP_CLOSE;
     }
 
     /* sock is failure and close sock */
