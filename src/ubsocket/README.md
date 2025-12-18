@@ -50,6 +50,12 @@ $ make -j8
 ```shell
 $ env LD_PRELOAD=/path/to/lib/librpc_adapter_brpc.so RPC_ADPT_TRANS_MODE=UB RPC_ADPT_DEV_NAME="udma2" RPC_ADPT_LOG_LEVEL=info RPC_ADPT_TX_DEPTH=2048 RPC_ADPT_RX_DEPTH=2048 RPC_ADPT_READV_UNLIMITED=true RPC_ADPT_BLOCK_TYPE="large" RPC_ADPT_POOL_INITIAL_SIZE=4096 ./your_program
 ```
+若需要使能BRPC内存块为64k，则需要通过以下方式修改
+1. 修改BRPC源码`iobuf.h`iobuf.h中`DEFAULT_BLOCK_SIZE`从8192改为65536
+2. 适配ubsocket时，需要加上配置项
+```shell
+$ RPC_ADPT_BLOCK_TYPE="large" RPC_ADPT_POOL_INITIAL_SIZE=4096
+```
 UBSocket通过环境变量配置通信库的各种属性
 
 | 环境变量 | 含义 |
