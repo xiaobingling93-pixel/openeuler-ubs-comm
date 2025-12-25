@@ -26,6 +26,9 @@
 #define UMQ_BIND_SYNC_MSG       "SYNC_DONE"
 #define DIVIDED_NUMBER          (2)
 #define CACHE_LINE_ALIGNMENT    (64)
+#define HANDLE_THRESHOLD        (2)
+#define RETRIEVE_THRESHOLD      (1)
+#define REPORT_THRESHOLD        (1)
 
 inline bool operator==(const umq_eid_t& a, const umq_eid_t& b) {
     return ::memcmp(a.raw, b.raw, sizeof(a.raw)) == 0;
@@ -178,12 +181,9 @@ public:
         m_rx_window_capacity = Context::GetContext()->GetRxDepth();
         m_tx.m_window_size = m_tx_window_capacity;
         m_rx.m_refill_threshold = m_rx_window_capacity <= REFILL_RX_THRESHOLD ? 1 : REFILL_RX_THRESHOLD;
-        m_tx.m_retrieve_threshold = m_tx_window_capacity <= RETRIEVE_TX_THRESHOLD_RATIO_DIVISOR ?
-            1 : m_tx_window_capacity / RETRIEVE_TX_THRESHOLD_RATIO_DIVISOR;
-        m_tx.m_handle_threshold = m_tx_window_capacity <= HANDLE_TX_THRESHOLD_RATIO_DIVISOR ?
-            1 : m_tx_window_capacity / HANDLE_TX_THRESHOLD_RATIO_DIVISOR;   
-        m_tx.m_report_threshold = m_tx.m_handle_threshold == 1 ?
-            1 : m_tx_window_capacity / HANDLE_TX_THRESHOLD_RATIO_DIVISOR / DIVIDED_NUMBER;
+        m_tx.m_handle_threshold = HANDLE_THRESHOLD;
+        m_tx.m_retrieve_threshold = RETRIEVE_THRESHOLD;
+        m_tx.m_report_threshold = REPORT_THRESHOLD;
         m_rx.m_readv_unlimited = Context::GetContext()->GetReadvUnlimited();
         if (Context::GetContext()->GetStatsEnable()) {
             m_context_stats_enable = true;
