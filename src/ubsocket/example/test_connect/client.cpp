@@ -101,7 +101,7 @@ static int Connect(bool isBlock)
    }
    std::cout << "read from server: " << buf << std::endl;
 
-   ret = shutdown(sockfd, 0);
+   ret = shutdown(sockfd, SHUT_RDWR);
    if (ret != 0) {
        perror("shutdown failed");
        return -1;
