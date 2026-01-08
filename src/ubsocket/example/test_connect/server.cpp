@@ -19,7 +19,7 @@ static constexpr int32_t BACKLOG = 1024;
 static constexpr int32_t MAX_EVENTS = 16;
 int32_t g_port;
 int32_t g_isBlock; // 0为false，1为true
-int32_t g_accept_type; // 0为accept，1为accept4
+int32_t g_acceptType; // 0为accept，1为accept4
 
 static int OsdParseArgs(int argc, char* argv[])
 {
@@ -29,7 +29,7 @@ static int OsdParseArgs(int argc, char* argv[])
    }
    g_port = atoi(argv[1]);
    g_isBlock = atoi(argv[ARGS_2]);
-   g_accept_type = atoi(argv[ARGS_3]);
+   g_acceptType = atoi(argv[ARGS_3]);
    return 0;
 }
 
@@ -54,7 +54,7 @@ static int SetBlocking(int fd)
 
 static void AcceptHandler(int sockfd, int &newfd, int epollFd)
 {
-   if (!g_accept_type) {
+   if (!g_acceptType) {
        newfd = accept(sockfd, nullptr, nullptr);
        if (newfd == -1) {
            perror("accept failed");
@@ -151,7 +151,8 @@ static void EventLoop(int sockfd)
    }
 }
 
-int CreateSockfd() {
+int CreateSockfd()
+{
    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
    if (sockfd < 0) {
        perror("socket failed");
