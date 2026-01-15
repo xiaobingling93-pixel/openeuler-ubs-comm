@@ -260,5 +260,7 @@ EXPOSE_C_DEFINE int epoll_wait(int epfd, struct epoll_event *events, int maxeven
 __attribute__((constructor)) static void rpc_adapter_brpc_init(void)
 {
     (void)OsAPiMgr::GetOriginApi();
+#ifndef UBSOCKET_TEST_MODE
     (void)Brpc::Context::GetContext();
+#endif
 }
