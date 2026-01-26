@@ -118,7 +118,7 @@ UResult UBDeviceHelper::DoUpdate(urma_device_attr_t *devAttr, uint8_t &bandWidth
         return UB_DEVICE_FAILED_OPEN;
     }
     
-    NN_LOG_INFO("Choosing UB Device " << i << " name " << devList[i]->name);
+    NN_LOG_INFO("Choosing UB Device " << devIdx << " name " << devList[devIdx]->name);
     uint32_t eidCnt = 0;
     urma_eid_info_t *eidInfoList = HcomUrma::GetEidList(devList[devIdx], &eidCnt);
     if (eidInfoList == nullptr) {
@@ -128,12 +128,11 @@ UResult UBDeviceHelper::DoUpdate(urma_device_attr_t *devAttr, uint8_t &bandWidth
     auto guard2 = MakeScopeExit([&devAttr]() { HcomUrma::FreeEidList(eidInfoList); });
 
     // Query and process device info
-    if ((ret = HcomUrma::QueryDevice(devList[i], devAttr)) != 0) {
+    if ((ret = HcomUrma::QueryDevice(devList[devIdx], devAttr)) != 0) {
         NN_LOG_ERROR("Failed to query urma device");
         return ret;
     }
 
-    info.active = devAttr->port_attr[0].state == URMA_PORT_ACTIVE;
     auto it = G_UBDevBWTable.find(devAttr->port_attr[0].active_speed);
     if (it == G_UBDevBWTable.end()) {
         NN_LOG_ERROR("UB failed to query urma device bandwidth.");
@@ -144,7 +143,7 @@ UResult UBDeviceHelper::DoUpdate(urma_device_attr_t *devAttr, uint8_t &bandWidth
     int eidIndex = 0;
     urma_context_t *tmpCtx = nullptr;
     if ((tmpCtx = HcomUrma::CreateContext(devList[devIdx], eidIndex)) == nullptr) {
-        NN_LOG_ERROR("Invalid device index is set for Device " << devList[i]->name << ", errno " << errno);
+        NN_LOG_ERROR("Invalid device index is set for Device " << devList[devIdx]->name << ", errno " << errno);
         return UB_DEVICE_OPEN_FAILED;
     }
     bandWidth = bw;
