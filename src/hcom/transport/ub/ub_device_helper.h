@@ -40,11 +40,6 @@ public:
     static UResult Update();
 
     static UResult GetDeviceCount(uint16_t &deviceCount, std::vector<UBDeviceSimpleInfo> &enabledDevices);
-
-    static UResult GetDeviceByIp(const std::string &ip, UBEId &gid);
-    static UResult GetDeviceByEid(const uint8_t eid[], UBEId &gid);
-    static UResult GetDeviceByName(const char name[], uint8_t len, UBEId &gid);
-
     static uint32_t GetPortNumber();
 
     static UResult GetEnableDeviceCount(std::string ipMask, uint16_t &enableDevCount,

@@ -231,50 +231,6 @@ UResult UBDeviceHelper::GetEnableDeviceCount(std::string ipMask, uint16_t &enabl
     // return result;
 }
 
-UResult UBDeviceHelper::GetDeviceByIp(const std::string &ip, UBEId &gid)
-{
-    UResult ret = UB_OK;
-    struct sockaddr_in address {};
-    if ((ret = GetIfAddressByIp(ip, address)) != UB_OK) {
-        return ret;
-    }
-
-    return GetDeviceByAddress(ip, address, gid);
-}
-
-UResult UBDeviceHelper::GetDeviceByEid(const uint8_t eid[], UBEId &gid)
-{
-    std::lock_guard<std::mutex> guard(G_Mutex);
-    for (auto &item : G_UBDevEidTable) {
-        for (auto &gItem : item.second) {
-            if (std::memcmp(eid, gItem.urmaEid.raw, URMA_EID_SIZE) == 0) {
-                gid = gItem;
-                return UB_OK;
-            }
-        }
-    }
-
-    NN_LOG_ERROR("Failed to get proper gid by eid " << eid);
-    return UB_DEVICE_NO_IP_TO_GID_MATCHED;
-}
-
-UResult UBDeviceHelper::GetDeviceByName(const char name[], uint8_t len, UBEId &gid)
-{
-    std::lock_guard<std::mutex> guard(G_Mutex);
-    for (auto &item : G_UBDevEidTable) {
-        if (item.second.empty()) {
-            continue;
-        }
-        if (strncmp(name, item.first.c_str(), len) == 0) {
-            gid = item.second[0];
-            return UB_OK;
-        }
-    }
-
-    NN_LOG_ERROR("Failed to get proper gid by name " << name);
-    return UB_DEVICE_NO_IP_TO_GID_MATCHED;
-}
-
 UResult UBDeviceHelper::GetIfAddressByIp(const std::string &ip, struct sockaddr_in &address)
 {
     struct ifaddrs *addresses = nullptr;
