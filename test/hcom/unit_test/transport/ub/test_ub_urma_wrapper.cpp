@@ -43,7 +43,7 @@ TestUbUrmaWrapper::TestUbUrmaWrapper() {}
 void TestUbUrmaWrapper::SetUp()
 {
     mUBDeviceHelper = new (std::nothrow) UBDeviceHelper();
-    ctx = new (std::nothrow) UBContext("ctx", eid);
+    ctx = new (std::nothrow) UBContext("ctx");
     jfc = new (std::nothrow) UBJfc(name, ctx, false, 0);
     resList = (urma_device_t **)malloc(sizeof(urma_device_t *));
 }

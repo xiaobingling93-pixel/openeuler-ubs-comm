@@ -830,8 +830,7 @@ public:
 
 void TestNetUBSyncEndpoint::SetUp()
 {
-    UBEId gid;
-    ctx = new (std::nothrow) UBContext(name, gid);
+    ctx = new (std::nothrow) UBContext(name);
     ASSERT_NE(ctx, nullptr);
 
     bool startOobSvr = true;
