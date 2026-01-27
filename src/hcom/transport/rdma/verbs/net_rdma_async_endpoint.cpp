@@ -425,6 +425,10 @@ NResult NetAsyncEndpoint::PostSendRawNoCpy(const UBSHcomNetTransRequest &request
         return result;
     }
 
+    if (mIsNeedEncrypt) {
+        return PostSendRawNoCpyEncrypt(request, seqNo);
+    }
+
     auto worker = reinterpret_cast<RDMAWorker *>(mEp->Qp()->UpContext1());
     auto sendRawAsyncFlag = true;
     uint64_t finishTime = GetFinishTime();
@@ -441,6 +445,50 @@ NResult NetAsyncEndpoint::PostSendRawNoCpy(const UBSHcomNetTransRequest &request
     } while (sendRawAsyncFlag);
 
     NN_LOG_ERROR("Failed to post send raw request, result " << result);
+    return result;
+}
+
+NResult NetAsyncEndpoint::PostSendRawNoCpyEncrypt(const UBSHcomNetTransRequest &request, uint32_t seqNo)
+{
+    NResult result = NN_OK;
+
+    /* get mr from pool */
+    uintptr_t mrBufAddress = 0;
+    if (NN_UNLIKELY(!mDriver->mDriverSendMR->GetFreeBuffer(mrBufAddress))) {
+        NN_LOG_ERROR("Failed to post message as failed to get mr buffer from pool from driver " << mDriver->Name());
+        return NN_GET_BUFF_FAILED;
+    }
+
+    uint32_t cipherLen = 0;
+    if (!mAes.Encrypt(mSecrets, reinterpret_cast<void *>(request.lAddress), request.size,
+        reinterpret_cast<void *>(mrBufAddress), cipherLen)) {
+        NN_LOG_ERROR("Failed send message as encryption failure in rdma");
+        mDriver->mDriverSendMR->ReturnBuffer(mrBufAddress);
+        return NN_ENCRYPT_FAILED;
+    }
+
+    UBSHcomNetTransRequest rdmaReq = request;
+    rdmaReq.lAddress = mrBufAddress;
+    rdmaReq.lKey = mDriver->mDriverSendMR->GetLKey();
+    rdmaReq.size = cipherLen;
+
+    auto worker = reinterpret_cast<RDMAWorker *>(mEp->Qp()->UpContext1());
+    auto sendRawAsyncFlag = true;
+    uint64_t finishTime = GetFinishTime();
+    do {
+        result = worker->PostSendRawNoCpy(mEp->Qp(), rdmaReq, seqNo);
+        if (NN_LIKELY(result == RR_OK)) {
+            return NN_OK;
+        } else if (NeedRetry(result) && mDefaultTimeout != 0 && NetMonotonic::TimeNs() < finishTime) {
+            usleep(NN_NO128);
+            continue;
+        }
+        // no retry result or timeout = 0
+        sendRawAsyncFlag = false;
+    } while (sendRawAsyncFlag);
+
+    NN_LOG_ERROR("Failed to post send raw request, result " << result);
+    mDriver->mDriverSendMR->ReturnBuffer(mrBufAddress);
     return result;
 }
 

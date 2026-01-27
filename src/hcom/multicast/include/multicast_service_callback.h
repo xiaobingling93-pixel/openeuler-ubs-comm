@@ -26,7 +26,7 @@ enum class MultiCastSyncCBType {
 class MultiCastServiceTimer {
 public:
     Publisher *mPublisher = nullptr;
-    HcomServiceCtxStore *mCtxStore = nullptr;                    /* manager memory and seqNo */
+    HcomServiceCtxStore *mCtxStore = nullptr;                   /* manager memory and seqNo */
     uint64_t mTimeout = 0;                                      /* absolute timeout compare to current system time */
     uintptr_t mCallback = 0;                                    /* callback obj address */
     uint32_t mSeqNo = 0;                                        /* seq no for find query map */

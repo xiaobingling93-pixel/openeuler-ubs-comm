@@ -9,6 +9,7 @@
 namespace ock {
 namespace hcom {
 using WorkerMode = UBSHcomNetDriverWorkingMode;
+using CipherSuite = UBSHcomNetCipherSuite;
 
 struct MulticastServiceOptions {
     uint32_t maxSendRecvDataSize = 1024;           // 发送数据块最大值
@@ -26,6 +27,9 @@ struct MulticastServiceOptions {
     uint16_t completionQueueDepth = 2048;           // cq队列的大小
     uint32_t maxSubscriberNum = 7;                  // 一个发布者最大的订阅者数量
     uint8_t publisherWrkGroupNo = 0;                // subscriber订阅时对应publisher的groupNum
+    bool enableTls = true;                          // 是否开启TLS认证及加密传输
+    CipherSuite cipherSuite = AES_GCM_128;          // 加密套件，默认使用AES_GCM_128
+                                                    // 另外支持AES_GCM_256, AES_CCM_128, CHACHA20_POLY1305
 };
 
 struct MulticastHeartBeatOptions {

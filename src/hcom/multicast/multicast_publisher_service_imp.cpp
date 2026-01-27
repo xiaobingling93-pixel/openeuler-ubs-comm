@@ -43,6 +43,21 @@ void PublisherServiceImp::RegisterSendHandler(const MulticastReqPostedHandler &h
     mPubSendHandler = handler;
 }
 
+void PublisherServiceImp::RegisterTLSCaCallback(const UBSHcomTLSCaCallback &cb)
+{
+    mPubTLSCaCallback = cb;
+}
+
+void PublisherServiceImp::RegisterTLSCertificationCallback(const UBSHcomTLSCertificationCallback &cb)
+{
+    mPubTLSCertificationCallback = cb;
+}
+
+void PublisherServiceImp::RegisterTLSPrivateKeyCallback(const UBSHcomTLSPrivateKeyCallback &cb)
+{
+    mPubTLSPrivateKeyCallback = cb;
+}
+
 void PublisherServiceImp::AddWorkerGroup(uint16_t workerGroupId, uint32_t threadCount,
     const std::pair<uint32_t, uint32_t> &cpuIdsRange, int8_t priority)
 {
@@ -274,6 +289,12 @@ SerResult PublisherServiceImp::InitDriver()
     mDriverPtr->RegisterNewEPHandler(std::bind(&PublisherServiceImp::NewSubscriptionCallback, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
     mDriverPtr->RegisterEPBrokenHandler(std::bind(&PublisherServiceImp::EpBrokenCallback, this, std::placeholders::_1));
+
+    if (driverOpt.enableTls) {
+        mDriverPtr->RegisterTLSCaCallback(mPubTLSCaCallback);
+        mDriverPtr->RegisterTLSCertificationCallback(mPubTLSCertificationCallback);
+        mDriverPtr->RegisterTLSPrivateKeyCallback(mPubTLSPrivateKeyCallback);
+    }
 
     int32_t res = mDriverPtr->Initialize(driverOpt);
     if (NN_UNLIKELY(res != SER_OK)) {

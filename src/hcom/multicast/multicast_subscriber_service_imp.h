@@ -34,6 +34,10 @@ public:
      */
     void RegisterBrokenHandler(const MulticastEpBrokenHandler &handler);
 
+    void RegisterTLSCaCallback(const UBSHcomTLSCaCallback &cb);
+    void RegisterTLSCertificationCallback(const UBSHcomTLSCertificationCallback &cb);
+    void RegisterTLSPrivateKeyCallback(const UBSHcomTLSPrivateKeyCallback &cb);
+
 private:
     SerResult InitDriver();
     SerResult StartDriver();
@@ -52,6 +56,10 @@ private:
 
     MulticastReqRecvHandler mSubscribeRecvHandler = nullptr;
     MulticastEpBrokenHandler mEpBrokenHandler = nullptr;
+
+    UBSHcomTLSCaCallback mSubTLSCaCallback = nullptr;
+    UBSHcomTLSCertificationCallback mSubTLSCertificationCallback = nullptr;
+    UBSHcomTLSPrivateKeyCallback mSubTLSPrivateKeyCallback = nullptr;
 };
 }
 }

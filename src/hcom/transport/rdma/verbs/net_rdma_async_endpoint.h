@@ -247,6 +247,8 @@ private:
         return reinterpret_cast<RDMAWorker *>(mEp->Qp()->UpContext1());
     }
 
+    NResult PostSendRawNoCpyEncrypt(const UBSHcomNetTransRequest &request, uint32_t seqNo);
+
     RDMAAsyncEndPoint *mEp = nullptr;
     NetDriverRDMAWithOob *mDriver = nullptr;
 

@@ -32,6 +32,8 @@ bool MulticastConfigImp::Init(const std::string &name, const MulticastServiceOpt
     mOptions.maxSubscriberNum = opt.maxSubscriberNum;
     mOptions.publisherGroupNo = opt.publisherWrkGroupNo;
     mOptions.qpBatchRePostSize = opt.qpBatchRePostSize;
+    mOptions.enableTls = opt.enableTls;
+    mOptions.cipherSuite = opt.cipherSuite;
     return true;
 }
 
@@ -165,7 +167,8 @@ bool MulticastConfigImp::FillNetDriverOpt(ock::hcom::UBSHcomNetDriverOptions &dr
         NN_LOG_ERROR("SetNetDeviceIpGroup Failed!");
         return false;
     }
-    driverOpt.enableTls = false;
+    driverOpt.enableTls = mOptions.enableTls;
+    driverOpt.cipherSuite = mOptions.cipherSuite;
     driverOpt.dontStartWorkers = mOptions.workerGroupInfos.empty();
     driverOpt.mode = mOptions.workerGroupMode;
     driverOpt.oobType = mOptions.oobType;

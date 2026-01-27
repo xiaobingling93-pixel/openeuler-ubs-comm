@@ -71,6 +71,12 @@ SerResult SubscriberServiceImp::InitDriver()
     mDriverPtr->RegisterNewEPHandler(DefaultNewEndPoint);
     mDriverPtr->RegisterEPBrokenHandler(
         std::bind(&SubscriberServiceImp::ServiceEndPointBroken, this, std::placeholders::_1));
+    
+    if (driverOpt.enableTls) {
+        mDriverPtr->RegisterTLSCaCallback(mSubTLSCaCallback);
+        mDriverPtr->RegisterTLSCertificationCallback(mSubTLSCertificationCallback);
+        mDriverPtr->RegisterTLSPrivateKeyCallback(mSubTLSPrivateKeyCallback);
+    }
 
     int32_t res = mDriverPtr->Initialize(driverOpt);
     if (NN_UNLIKELY(res != SER_OK)) {
@@ -227,6 +233,21 @@ void SubscriberServiceImp::RegisterRecvHandler(const MulticastReqRecvHandler &re
 void SubscriberServiceImp::RegisterBrokenHandler(const MulticastEpBrokenHandler &handler)
 {
     mEpBrokenHandler = handler;
+}
+
+void SubscriberServiceImp::RegisterTLSCaCallback(const UBSHcomTLSCaCallback &cb)
+{
+    mSubTLSCaCallback = cb;
+}
+
+void SubscriberServiceImp::RegisterTLSCertificationCallback(const UBSHcomTLSCertificationCallback &cb)
+{
+    mSubTLSCertificationCallback = cb;
+}
+
+void SubscriberServiceImp::RegisterTLSPrivateKeyCallback(const UBSHcomTLSPrivateKeyCallback &cb)
+{
+    mSubTLSPrivateKeyCallback = cb;
 }
 }
 }

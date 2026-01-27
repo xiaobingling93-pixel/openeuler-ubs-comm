@@ -90,6 +90,15 @@ public:
     virtual void RegisterSendHandler(const MulticastReqPostedHandler &handler) = 0;
     virtual void RegisterPubRecvHandler(const MulticastPubReqRecvHandler &handler) = 0;
 
+    /**
+     * @brief 注册TLS回调
+     *
+     * @param cb TLS回调函数
+     */
+    virtual void RegisterTLSCaCallback(const UBSHcomTLSCaCallback &cb) = 0;
+    virtual void RegisterTLSCertificationCallback(const UBSHcomTLSCertificationCallback &cb) = 0;
+    virtual void RegisterTLSPrivateKeyCallback(const UBSHcomTLSPrivateKeyCallback &cb) = 0;
+
     virtual void AddWorkerGroup(uint16_t workerGroupId, uint32_t threadCount,
         const std::pair<uint32_t, uint32_t> &cpuIdsRange, int8_t priority) = 0;
 
