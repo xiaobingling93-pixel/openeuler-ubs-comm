@@ -49,8 +49,7 @@ public:
 
 void TestNetUBAsyncEndpoint::SetUp()
 {
-    UBEId eid{};
-    UBContext::Create("test_net_ub_endpoint", eid, ctx);
+    UBContext::Create("test_net_ub_endpoint", ctx);
     ASSERT_NE(ctx, nullptr);
 
     bool startOobSvr = true;
