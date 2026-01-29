@@ -470,7 +470,7 @@ bool UBSHcomNetDriver::LocalSupport(UBSHcomNetDriverProtocol t, UBSHcomNetDriver
 bool UBSHcomNetDriver::MultiRailGetDevCount(UBSHcomNetDriverProtocol t, std::string ipMask, uint16_t &enableDevCount,
     std::string ipGroup)
 {
-#if defined(RDMA_BUILD_ENABLED) || defined(UB_BUILD_ENABLED)
+#if defined(RDMA_BUILD_ENABLED)
     uint16_t devCount = 0;
     std::vector<std::string> enableIps;
 #endif
@@ -499,23 +499,8 @@ bool UBSHcomNetDriver::MultiRailGetDevCount(UBSHcomNetDriverProtocol t, std::str
         case UBSHcomNetDriverProtocol::TCP:
         case UBSHcomNetDriverProtocol::UDS:
         case UBSHcomNetDriverProtocol::SHM:
-            return true;
         case UBSHcomNetDriverProtocol::UBC:
-#ifdef UB_BUILD_ENABLED
-            if (HcomUrma::Load() != 0) {
-                NN_LOG_WARN("Failed to load verbs API, unable to run RDMA app");
-                return false;
-            }
-
-            if (UBDeviceHelper::GetEnableDeviceCount(ipMask, devCount, enableIps, ipGroup) != UB_OK || devCount == 0) {
-                NN_LOG_WARN("Failed to get URMA devices or no active device found, unable to run URMA app");
-                return false;
-            }
-            enableDevCount = devCount;
             return true;
-#endif
-            NN_LOG_WARN("Failed to get URMA devices or no active device found, URMA compilation not enabled");
-            return false;
 
         default:
             NN_LOG_WARN("Un-supported protocol");
