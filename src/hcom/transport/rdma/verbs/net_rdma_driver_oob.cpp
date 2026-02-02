@@ -1353,7 +1353,7 @@ NResult NetDriverRDMAWithOob::SendRequestFinishedCB(RDMAOpContextInfo *ctx, UBSH
     }
 
     // send raw no copy not use send mr buffer, so not need to return
-    if (ctx->opType != RDMAOpContextInfo::SEND_RAW_NO_CP) {
+    if (ctx->opType != RDMAOpContextInfo::SEND_RAW_NO_CP || mEnableTls) {
         if (NN_UNLIKELY(!mDriverSendMR->ReturnBuffer(ctx->mrMemAddr))) {
             NN_LOG_ERROR("Failed to return mr segment back in Driver " << mName);
         }

@@ -211,6 +211,8 @@ RResult RDMAWorker::PostSendRawNoCpy(RDMAQp *qp, const RDMASendReadWriteRequest 
     ctx->upCtxSize = req.upCtxSize;
     if (req.upCtxSize > 0 && NN_UNLIKELY(memcpy_s(ctx->upCtx, NN_NO16, req.upCtxData, req.upCtxSize) != RR_OK)) {
         NN_LOG_ERROR("Failed to copy req to ctx");
+        qp->ReturnPostSendWr();
+        mOpCtxInfoPool.Return(ctx);
         return RR_PARAM_INVALID;
     }
     qp->IncreaseRef();

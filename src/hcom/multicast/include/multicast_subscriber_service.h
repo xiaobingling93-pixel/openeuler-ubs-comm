@@ -46,6 +46,7 @@ public:
 
     /**
      * @brief 创建subscriber
+     * @param serverUrl 目标url，如：tcp://127.0.0.1:9981
      * @param subscriber 返回创建出的subscriber
      * @return int32_t 成功：0；失败：错误码
      */
@@ -68,7 +69,6 @@ public:
      * @brief 注册断链回调
      *
      * @param handler 断链回调函数
-     * @param policy 断链回调策略
      */
     virtual void RegisterBrokenHandler(const MulticastEpBrokenHandler &handler) = 0;
 
@@ -76,9 +76,17 @@ public:
      * @brief 注册接收回调
      *
      * @param handler 接收回调函数
-     * @param policy 接收回调策略
      */
     virtual void RegisterRecvHandler(const MulticastReqRecvHandler &handler) = 0;
+
+    /**
+     * @brief 注册TLS回调
+     *
+     * @param cb TLS回调函数
+     */
+    virtual void RegisterTLSCaCallback(const UBSHcomTLSCaCallback &cb) = 0;
+    virtual void RegisterTLSCertificationCallback(const UBSHcomTLSCertificationCallback &cb) = 0;
+    virtual void RegisterTLSPrivateKeyCallback(const UBSHcomTLSPrivateKeyCallback &cb) = 0;
 };
 }
 }

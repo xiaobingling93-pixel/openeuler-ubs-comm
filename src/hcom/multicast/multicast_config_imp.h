@@ -34,6 +34,8 @@ struct MulticastServiceOptionsInner {
     uint32_t maxSubscriberNum = 7;
     uint8_t publisherGroupNo = 0;
     uint32_t qpBatchRePostSize = 10;
+    bool enableTls = true;
+    CipherSuite cipherSuite = AES_GCM_128;
 };
 
 class MulticastConfigImp : public MulticastConfig {

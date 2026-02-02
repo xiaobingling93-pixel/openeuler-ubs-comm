@@ -29,6 +29,10 @@ public:
     // recv callback for reserved, not used now as subscriber will not send msg, just reply
     void RegisterPubRecvHandler(const MulticastPubReqRecvHandler &handler);
 
+    void RegisterTLSCaCallback(const UBSHcomTLSCaCallback &cb);
+    void RegisterTLSCertificationCallback(const UBSHcomTLSCertificationCallback &cb);
+    void RegisterTLSPrivateKeyCallback(const UBSHcomTLSPrivateKeyCallback &cb);
+
     void AddWorkerGroup(uint16_t workerGroupId, uint32_t threadCount, const std::pair<uint32_t, uint32_t> &cpuIdsRange,
                         int8_t priority);
 
@@ -61,6 +65,10 @@ private:
     MulticastEpBrokenHandler mPubBrokenHandler = nullptr;
     MulticastPubReqRecvHandler mPubRecvHandler = nullptr;
     MulticastReqPostedHandler mPubSendHandler = nullptr;
+
+    UBSHcomTLSCaCallback mPubTLSCaCallback = nullptr;
+    UBSHcomTLSCertificationCallback mPubTLSCertificationCallback = nullptr;
+    UBSHcomTLSPrivateKeyCallback mPubTLSPrivateKeyCallback = nullptr;
 
     PublisherPtr mPublisher = nullptr;
     MultiCastPeriodicManagerPtr mPeriodicMgr = nullptr;
