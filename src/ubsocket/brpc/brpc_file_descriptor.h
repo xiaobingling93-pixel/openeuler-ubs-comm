@@ -2565,6 +2565,9 @@ private:
                 if (buf[i]->status != 0) {
                     ProcessErrorTxCqe(buf[i]);
                     wr_cnt++;
+                    if (m_context_trace_enable) {
+                        UpdateTraceStats(StatsMgr::TX_ERROR_PACKET_COUNT, 1);
+                    }
                     continue;
                 }
 
