@@ -112,7 +112,7 @@ void TerminalDisplay::PrintHeader(CLIDataHeader &header)
     PrintTitle("CLI STATISTICS MONITOR");
     PrintItem("Total Sockets", header.socketNum);
     PrintItem("Connect Calls", header.connNum);
-    PrintItem("Accept Calls", header.acceptNum);
+    PrintItem("Active Conns", header.activeConn);
     NewLine();
 }
 
