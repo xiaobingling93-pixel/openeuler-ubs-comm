@@ -189,6 +189,8 @@ public:
     {
         QBUF_LIST_INIT(&m_tx.m_head_buf);
         QBUF_LIST_INIT(&m_tx.m_tail_buf);
+        QBUF_LIST_INIT(&m_rx.m_umq_buf_cache_head);
+        QBUF_LIST_INIT(&m_rx.m_umq_buf_cache_tail);
         m_tx_window_capacity = Context::GetContext()->GetTxDepth();
         m_rx_window_capacity = Context::GetContext()->GetRxDepth();
         m_tx.m_window_size = m_tx_window_capacity;
@@ -201,6 +203,7 @@ public:
             m_context_trace_enable = true;
         }
         m_event_fd = event_fd;
+        m_rx.m_remaining_size = 0;
     }
 
     SocketFd(int fd, uint64_t magic_number, uint32_t magic_number_recv_size) : ::SocketFd(fd), StatsMgr(fd)
@@ -1141,98 +1144,115 @@ public:
             }
             m_rx.m_get_and_ack_event = false;
         }
- 
-        uint32_t max_buf_size;
-        if (m_rx.m_readv_unlimited) {
-            max_buf_size = UINT32_MAX;
-        } else {
-            max_buf_size = static_cast<uint32_t>(len);
-            if (max_buf_size != len) {
-                errno = EINVAL;
-                return -1;
+
+        size_t remaining_user_buf = len; // Remaining space in user buffer
+        char* user_buf_ptr = static_cast<char*>(buf); // Use a pointer to track position in user buffer
+        size_t copied_buf = 0;
+
+        while (remaining_user_buf > 0 && m_rx.m_remaining_size > 0) {
+            umq_buf_t *cur_buf = QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_head);
+            if (cur_buf == nullptr) {
+                break;
+            }
+            if (cur_buf->data_size <= remaining_user_buf) {
+                memcpy_s(user_buf_ptr + copied_buf, remaining_user_buf, cur_buf->buf_data, cur_buf->data_size);
+                m_rx.m_remaining_size -= cur_buf->data_size;
+                remaining_user_buf -= cur_buf->data_size;
+                copied_buf += cur_buf->data_size;
+                umq_buf_t *next_buf = QBUF_LIST_NEXT(cur_buf);
+                umq_buf_free(cur_buf);
+                QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_head) = next_buf;
+            } else {
+                memcpy_s(user_buf_ptr + copied_buf, remaining_user_buf, cur_buf->buf_data, remaining_user_buf);
+                m_rx.m_remaining_size -= remaining_user_buf;
+                cur_buf->buf_data = static_cast<char*>(cur_buf->buf_data) + remaining_user_buf;
+                cur_buf->data_size -= remaining_user_buf;
+                remaining_user_buf = 0;
+                break;
             }
         }
- 
-        bool is_blocking = IsBlocking(m_fd);
+
+        if (remaining_user_buf == 0) {
+            return len;
+        }
+
         umq_buf_t *buf_array[POLL_BATCH_MAX];
         int poll_num = 0;
- 
-        while (true) {
+        while (poll_num == 0) {
             poll_num = UmqPollAndRefillRx(buf_array, POLL_BATCH_MAX);
             if (poll_num < 0) {
                 errno = EIO;
-                return -1; // Error occurred during polling
-            } else if (poll_num > 0) {
-                break;
-            } else { // poll_num == 0
-                if (!is_blocking) {
-                    RPC_ADPT_VLOG_ERR("Recv: Non-blocking mode, no data available, setting errno = EAGAIN\n");
-                    errno = EAGAIN;
-                    return -1;
-                } else {
-                    RPC_ADPT_VLOG_DEBUG("Recv: Blocking mode, no data, polling again...\n");
-                }
+                return -1;
+            } else if (poll_num == 0) {
+                m_rx.m_poll = false; 
             }
         }
- 
-        // Process Polled Buffers and Copy Directly (only executed if poll_num > 0)
-        rx_total_len = 0; // Total bytes copied to user buffer
-        char* user_buf_ptr = static_cast<char*>(buf); // Use a pointer to track position in user buffer
-        size_t remaining_user_buf = len; // Remaining space in user buffer
- 
-        if (poll_num > 0) {
-            for (int i = 0; i < poll_num; ++i) {
-                if (buf_array[i]->status != 0) {
-                    if (buf_array[i]->status != UMQ_FAKE_BUF_FC_UPDATE) {
-                        RPC_ADPT_VLOG_DEBUG("RX CQE is invalid, status: %d\n", buf_array[i]->status);
-                        QBUF_LIST_NEXT(buf_array[i]) = nullptr;
-                        umq_buf_free(buf_array[i]);
-                        continue; // Skip this invalid buffer
-                    } else {
-                        m_rx.m_window_size += 1;
-                        // Handle flow control update
-                        bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
-                        if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                            RPC_ADPT_VLOG_ERR("write event fd %d failed, errno: %d\n", m_event_fd, errno);
-                        }
 
+        if (poll_num != 0) {
+            for (int i = 0; i < poll_num - 1; ++i) {
+                QBUF_LIST_NEXT(buf_array[i]) = buf_array[i + 1];
+            }
+            if (QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_head) == nullptr) {
+                QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_head) = buf_array[0];
+                QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_tail) = buf_array[poll_num - 1];
+            } else {
+                QBUF_LIST_NEXT(QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_tail)) = buf_array[0];
+                QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_tail) = buf_array[poll_num - 1];
+            }
+        }
+
+        for (int i = 0; i < poll_num; ++i) {
+            if (buf_array[i]->status != 0) {
+                if (buf_array[i]->status != UMQ_BUF_FLOW_CONTROL_UPDATE) {
+                    RPC_ADPT_VLOG_DEBUG("RX CQE is invalid, status: %d\n", buf_array[i]->status);
+                    QBUF_LIST_NEXT(buf_array[i]) = nullptr;
+                    umq_buf_free(buf_array[i]);
+                    continue;
+                } else {
+                    // try to wake up tx if necessary
+                    bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
+                    if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
+                        RPC_ADPT_VLOG_ERR("write event fd%fd failed, errno: %d\n", m_event_fd, errno);
+                    }
+
+                    if (buf_array[i]->total_data_size == 0) {
                         QBUF_LIST_NEXT(buf_array[i]) = nullptr;
                         umq_buf_free(buf_array[i]);
-                        continue;  // No data in this FC update packet
+                        continue;
                     }
                 }
- 
-                size_t data_size_to_copy = buf_array[i]->data_size;
- 
-                // Check if user buffer has enough space for this chunk
-                if (remaining_user_buf < data_size_to_copy) {
-                    data_size_to_copy = remaining_user_buf; // Copy only what fits
+            }
+
+            if (remaining_user_buf > 0) {
+                if (buf_array[i]->data_size <= remaining_user_buf) {
+                    memcpy_s(user_buf_ptr + copied_buf, remaining_user_buf, buf_array[i]->buf_data,
+                             buf_array[i]->data_size);
+                    remaining_user_buf -= buf_array[i]->data_size;
+                    copied_buf += buf_array[i]->data_size;
+                    umq_buf_t *next_buf = QBUF_LIST_NEXT(buf_array[i]);
+                    umq_buf_free(buf_array[i]);
+                    QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_head) = next_buf;
+                } else {
+                    memcpy_s(user_buf_ptr + copied_buf, remaining_user_buf, buf_array[i]->buf_data, remaining_user_buf);
+                    m_rx.m_remaining_size += buf_array[i]->data_size - remaining_user_buf;
+                    buf_array[i]->buf_data = static_cast<char*>(buf_array[i]->buf_data) + remaining_user_buf;
+                    buf_array[i]->data_size -= remaining_user_buf;
+                    remaining_user_buf = 0;
                 }
- 
-                if (data_size_to_copy > 0) {
-                    // Copy data directly from UMQ buffer to user buffer
-                    memcpy_s(user_buf_ptr, data_size_to_copy, buf_array[i]->buf_data, data_size_to_copy);
-                    rx_total_len += data_size_to_copy;
-                    user_buf_ptr += data_size_to_copy;
-                    remaining_user_buf -= data_size_to_copy;
-                }
- 
-                // Free the UMQ buffer after copying its data
-                QBUF_LIST_NEXT(buf_array[i]) = nullptr; // Ensure list termination if needed by umq_buf_free
-                umq_buf_free(buf_array[i]); // Free the UMQ buffer structure and its associated data area
- 
-                // If user buffer is full, stop processing more buffers in this call
-                if (remaining_user_buf == 0) {
-                    RPC_ADPT_VLOG_DEBUG("Recv: User buffer is full, stopping processing of further buffers\n");
-                    break;
-                }
+            } else {
+                m_rx.m_remaining_size += buf_array[i]->data_size;
             }
         }
- 
-        if (rx_total_len == 0) {
+
+        if (m_rx.m_remaining_size != 0) {
+            QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_tail) = buf_array[poll_num - 1];
+        }
+
+        if (remaining_user_buf > 0) {
             // Check for epoll event num mismatch (similar to ReadV)
+            m_rx.m_poll = true;
             if (!m_rx.m_epoll_event_num.compare_exchange_strong(
-                 m_rx.m_expect_epoll_event_num, 0, std::memory_order_release, std::memory_order_acquire)) {
+                        m_rx.m_expect_epoll_event_num, 0, std::memory_order_release, std::memory_order_acquire)) {
                 m_rx.m_poll = true;
                 errno = EINTR;
                 return -1;
@@ -1251,8 +1271,8 @@ public:
             errno = EAGAIN;
             return -1;
         }
- 
-        return rx_total_len;
+
+        return len;
     }
 
     ALWAYS_INLINE ssize_t Read(void *buf, size_t nbyte)
@@ -1408,7 +1428,8 @@ public:
         if (m_closed.load(std::memory_order_relaxed)) {
             errno = EPIPE; // Broken pipe if connection is closed
             return -1;
-        }      
+        }
+
         if (m_tx.m_get_and_ack_event) {
             do {
                 if (GetAndAckEvent(UMQ_IO_TX) < 0) {
@@ -3175,7 +3196,10 @@ private:
         bool m_get_and_ack_event = false;
         bool m_poll = false;
         bool m_readv_unlimited = false;
-        Brpc::BlockCache m_block_cache; 
+        Brpc::BlockCache m_block_cache;
+        umq_buf_list_t m_umq_buf_cache_head = {0};
+        umq_buf_list_t m_umq_buf_cache_tail = {0};
+        size_t m_remaining_size = 0;
     } m_rx;
 };
 
