@@ -21,6 +21,7 @@
 #include "rpc_adpt_vlog.h"
 #include "socket_adapter.h"
 #include "polling_epoll.h"
+#include "cli_message.h"
 
 #define RPC_ADPT_FD_MAX      (8192)
 
@@ -275,6 +276,7 @@ class SocketFd : public Fd<SocketFd> {
     }
 
     virtual void OutputStats(std::ostringstream &oss) = 0;
+    virtual void GetSocketCLIData(Statistics::CLISocketData *data) = 0;
 
     virtual PollingErrCode IsShmReadable(uint32_t event)
     {

@@ -25,6 +25,7 @@
 #include "qbuf_list.h"
 #include "buffer_util.h"
 #include "statistics.h"
+#include "cli_message.h"
 
 #define UMQ_BIND_INFO_SIZE_MAX  (512)
 #define UMQ_BIND_SYNC_MSG       "SYNC_DONE"
@@ -589,6 +590,10 @@ public:
         StatsMgr::OutputStats(oss);
     }
 
+    virtual void GetSocketCLIData(Statistics::CLISocketData *data)
+    {
+        StatsMgr::GetSocketCLIData(data);
+    }
     // adapt to brpc, brpc IOBuf block use 8k as buffer slice with a 32 bytes head, thus, RX buffer size is 8160
     uint32_t BrpcIOBufSize()
     {

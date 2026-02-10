@@ -9,6 +9,7 @@
 #ifndef STATISTICS_H
 #define STATISTICS_H
 
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
@@ -23,6 +24,7 @@
 #include <iomanip>
 #include "file_descriptor.h"
 #include "configure_settings.h"
+#include "cli_message.h"
 
 #define RPC_VAR         (2)
 
@@ -61,6 +63,11 @@ class Recorder {
          * M2: Intermediate quantilties used for calculating sample variance,
          * the sum of squares of differences from the current mean */
         m_cnt += input;
+    }
+
+    uint64_t GetCnt()
+    {
+        return m_cnt;
     }
 
     double GetMean()
@@ -203,6 +210,16 @@ public:
     inline static std::atomic<uint64_t> mTxByteCount{0};
     inline static std::atomic<uint64_t> mTxErrorPacketCount{0};
 
+    static uint64_t GetConnCount()
+    {
+        return mConnCount.load(std::memory_order_relaxed);
+    }
+
+    static uint64_t GetActiveConnCount()
+    {
+        return mActiveConnCount.load(std::memory_order_relaxed);
+    }
+
     static ALWAYS_INLINE void OutputAllStats(std::ostringstream &oss) {
         int timeBufSize = 32;
         time_t now = time(nullptr);
@@ -293,6 +310,18 @@ protected:
         }
     }
 
+    void GetSocketCLIData(Statistics::CLISocketData *data)
+    {
+        if (!m_stats_enable || data == nullptr) {
+            return;
+        }
+        data->sendPackets = m_recorder_vec[TX_PACKET_COUNT].GetCnt();
+        data->recvPackets = m_recorder_vec[RX_PACKET_COUNT].GetCnt();
+        data->sendBytes = m_recorder_vec[TX_BYTE_COUNT].GetCnt();
+        data->recvBytes = m_recorder_vec[RX_BYTE_COUNT].GetCnt();
+        data->errorPackets = m_recorder_vec[TX_ERROR_PACKET_COUNT].GetCnt();
+    }
+
     std::vector<Statistics::Recorder> m_recorder_vec;
     int m_output_fd = -1;
     bool m_stats_enable = false;
@@ -319,12 +348,32 @@ class Listener {
     const static uint32_t UDS_SUN_PATH_NAME_MAX = 32;
     const static uint32_t UDS_SEND_RECV_TIMEOUT_S = 8;
 
+    class fd_guard {
+    public:
+        fd_guard() : mfd(-1) {}
+        explicit fd_guard(int fd) : mfd(fd) {}
+
+        ~fd_guard()
+        {
+            if (mfd >= 0) {
+                OsAPiMgr::GetOriginApi()->close(mfd);
+                mfd = -1;
+            }
+        }
+
+        fd_guard(const fd_guard&) = delete;
+        void operator=(const fd_guard&) = delete;
+    private:
+        int mfd;
+    };
+
     Listener()
     {
-        struct sockaddr_un addr = { AF_UNIX, ""};
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
         // Create an abstract namespace socket name, which is also convenient to calculate string length
         char name[UDS_SUN_PATH_NAME_MAX] = {0};
-        int ret = snprintf_s(name, sizeof(name), sizeof(name) - 1, "rpc_adpt.sock.%u", (uint32_t)getpid());
+        int ret = snprintf_s(name, sizeof(name), sizeof(name) - 1, "ubscli-%u", (uint32_t)getpid());
         if(ret<0 || ret >=(int)sizeof(name)){
             throw std::runtime_error(
                 std::string("Failed to copy unix domain socket name, error ") + std::to_string(ret));
@@ -334,7 +383,7 @@ class Listener {
         addr.sun_path[0] = '\0';
         // Copy the name to the ramaining part
         ret = strncpy_s(addr.sun_path + 1, sizeof(addr.sun_path) - 1, name, UDS_SUN_PATH_NAME_MAX);
-        if (ret != EOK){
+        if (ret != EOK) {
             throw std::runtime_error(
                 std::string("Failed to construct unix domain socket name, error ") + std::to_string(ret));
         }
@@ -344,19 +393,12 @@ class Listener {
             throw std::runtime_error(std::string("Failed to create unix domain socket, ") + strerror(errno));
         }
 
-        if(fchmod(m_uds_fd, S_IRUSR | S_IWUSR) == -1){
-            (void)OsAPiMgr::GetOriginApi()->close(m_uds_fd);
-            throw std::runtime_error(std::string("Failed to set unix domain socket permission, ") + strerror(errno));
-        }
-
-        // Calculate the address length (note: including the leading null character)
-        uint32_t total_len = sizeof(addr.sun_family) + 1 + strlen(name);
-        if(OsAPiMgr::GetOriginApi()->bind(m_uds_fd, (struct sockaddr *)&addr, total_len) < 0){
+        if (OsAPiMgr::GetOriginApi()->bind(m_uds_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
             (void)OsAPiMgr::GetOriginApi()->close(m_uds_fd);
             throw std::runtime_error(std::string("Failed to bind unix domain socket, ") + strerror(errno));
         }
 
-        if(OsAPiMgr::GetOriginApi()->listen(m_uds_fd, 1) < 0){
+        if (OsAPiMgr::GetOriginApi()->listen(m_uds_fd, 1) < 0) {
             (void)OsAPiMgr::GetOriginApi()->close(m_uds_fd);
             throw std::runtime_error(std::string("Failed to listen unix domain socket, ") + strerror(errno));
         }
@@ -422,6 +464,36 @@ class Listener {
         return -1;
     }
 
+    uint32_t GetSockNum()
+    {
+        uint32_t sockNum = 0;
+        ScopedReadLock lock(Fd<SocketFd>::GetRWLock());
+        SocketFd **socketMap = Fd<SocketFd>::GetFdObjMap();
+        for (uint32_t i = 0; i < RPC_ADPT_FD_MAX; ++i) {
+            if (socketMap[i] == nullptr) {
+                continue;
+            }
+            sockNum++;
+        }
+        return sockNum;
+    }
+
+    void GetAllSocketData(CLISocketData *data, uint32_t sockNum)
+    {
+        ScopedReadLock lock(Fd<SocketFd>::GetRWLock());
+        SocketFd **socketMap = Fd<SocketFd>::GetFdObjMap();
+        uint32_t doneNum = 0;
+        for (uint32_t i = 0; i < RPC_ADPT_FD_MAX && doneNum < sockNum; ++i) {
+            if (socketMap[i] == nullptr) {
+                continue;
+            }
+            data->socketId = i;
+            socketMap[i]->GetSocketCLIData(data);
+            data += 1;
+            doneNum += 1;
+        }
+    }
+
     void Poll(void)
     {
         struct epoll_event events[MAX_EPOLL_EVENT_NUM];
@@ -443,19 +515,90 @@ class Listener {
         }
     }
 
+    void ProcessStatRequest(int fd, CLIMessage &msg, CLIControlHeader &header)
+    {
+        // collect socket count
+        uint32_t headerSize = sizeof(CLIDataHeader);
+        uint32_t sockNum = GetSockNum();
+        uint32_t sockDataSize = sockNum * sizeof(CLISocketData);
+        uint32_t totalSize = headerSize + sockDataSize;
+        // malloc mem base on socket cnt
+        if (!msg.AllocateIfNeed(totalSize)) {
+            RPC_ADPT_VLOG_INFO("Failed to alloc reponsese memory\n");
+            return;
+        }
+        CLIDataHeader CLIheader{};
+        CLIheader.socketNum = sockNum;
+        CLIheader.connNum = StatsMgr::GetConnCount();
+        CLIheader.activeConn = StatsMgr::GetActiveConnCount();
+        // collect data
+        if (memcpy_s(msg.Data(), msg.GetBufLen(), &CLIheader, headerSize) != 0) {
+            RPC_ADPT_VLOG_INFO("Failed to memcpy cli header\n");
+            return;
+        }
+        uint8_t *data = reinterpret_cast<uint8_t *>(msg.Data()) + sizeof(CLIDataHeader);
+        GetAllSocketData(reinterpret_cast<CLISocketData *>(data), sockNum);
+        header.Reset();
+        header.mDataSize = totalSize;
+        if (SocketFd::SendSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
+            sizeof(CLIControlHeader)) {
+            RPC_ADPT_VLOG_INFO("Failed to send CLIControlHeader\n");
+            return;
+        }
+
+        if (SocketFd::SendSocketData(fd, msg.Data(), totalSize, LISTENER_SEND_RECV_TIMEOUT_MS) != totalSize) {
+            RPC_ADPT_VLOG_INFO("Failed to send CLIControlHeader\n");
+            return;
+        }
+    }
+
+    void ProcessTopoRequest(int fd, CLIControlHeader &header)
+    {
+        umq_route_t route{};
+        route.src = header.srcEid;
+        route.dst = header.dstEid;
+   
+        umq_route_list_t route_list;
+        int ret = umq_get_route_list(&route, UMQ_TRANS_MODE_UB, &route_list);
+        if (ret != 0) {
+            RPC_ADPT_VLOG_INFO("Failed to get urma topo\n");
+            return;
+        }
+        umq_route_list_t filteredList{};
+        uint32_t filterNum = 0;
+        for (uint32_t i = 0;i< route_list.len; ++i) {
+            if (route_list.buf[i].flag.bs.rtp == 1) {
+                filteredList.buf[filterNum++] = route_list.buf[i];
+            }
+        }
+
+        filteredList.len = filterNum;
+        if (filteredList.len == 0) {
+            RPC_ADPT_VLOG_INFO("Failed to get urma topo is zero\n");
+            return;
+        }
+
+        if (SocketFd::SendSocketData(fd, &filteredList, sizeof(umq_route_list_t), LISTENER_SEND_RECV_TIMEOUT_MS) !=
+            sizeof(umq_route_list_t)) {
+            RPC_ADPT_VLOG_INFO("Failed to send umq route list\n");
+        }
+
+        return;
+    }
+
     void Process(uint32_t events)
     {
+        static CLIMessage msg{};
         if ((events & ((uint32_t)EPOLLERR | EPOLLHUP)) != 0){
             return;
         }
 
-        //The UDS uses blocking mode, eliminating the need to handle EAGAIN.
         int fd = OsAPiMgr::GetOriginApi()->accept(m_uds_fd, NULL, NULL);
         if(fd<0){
             RPC_ADPT_VLOG_ERR("Failed to accept connection, %s\n", strerror(errno));
             return;
         }
-
+        fd_guard tmpFd(fd);
         struct timeval tv = {0};
         tv.tv_sec = UDS_SEND_RECV_TIMEOUT_S;
         if(OsAPiMgr::GetOriginApi()->setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) != 0){
@@ -470,28 +613,19 @@ class Listener {
             return;
         }
 
-        CtrlHead head{0};
-        if(RecvCmd(fd, head) != 0){
-            RPC_ADPT_VLOG_ERR("Failed to receive command\n");
-            (void)OsAPiMgr::GetOriginApi()->close(fd);
+        CLIControlHeader header{};
+        if (SocketFd::RecvSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
+            sizeof(CLIControlHeader)) {
+            RPC_ADPT_VLOG_INFO("Failed to recv CLIControlHeader\n");
             return;
         }
 
-        m_oss.str("");
-        m_oss.clear();
-        if (head.m_module_id == RPC_ADPT_CMD_STATS){
-            ProcessStats();
+        if (header.mCmdId == CLICommand::STAT) {
+            ProcessStatRequest(fd, msg, header);
+        } else if (header.mCmdId == CLICommand::TOPO) {
+            ProcessTopoRequest(fd, header);
         }
-
-        m_oss.flush();
-        const std::string &str = m_oss.str();
-        head.m_error_code = 0;
-        head.m_data_size = str.length();
-        if (SendCmd(fd, head, str.data()) != 0){
-            RPC_ADPT_VLOG_ERR("Failed to send command response\n");
-        }
-
-        (void)OsAPiMgr::GetOriginApi()->close(fd);
+        return;
     }
 
     void WakeupEpoll()

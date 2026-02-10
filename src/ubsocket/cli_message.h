@@ -57,7 +57,7 @@ struct __attribute__((packed)) CLIControlHeader {
 struct __attribute__((packed)) CLIDataHeader {
     uint32_t socketNum;
     uint32_t connNum;
-    uint32_t acceptNum;
+    uint32_t activeConn;
 };
 
 struct __attribute__((packed)) CLISocketData {
