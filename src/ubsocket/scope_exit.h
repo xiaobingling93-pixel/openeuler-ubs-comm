@@ -14,7 +14,7 @@ public:
     {
     }
 
-    ScopeExit(ScopeExit &&) noexcept = delete;
+    ScopeExit(ScopeExit &&) noexcept = default;
     ScopeExit &operator=(ScopeExit &&) noexcept = delete;
 
     ~ScopeExit()
@@ -40,7 +40,11 @@ private:
         {
         }
 
-        FuncHolder(FuncHolder &&) noexcept = delete;
+        FuncHolder(FuncHolder &&rhs) noexcept : F(std::move(rhs)), m_active(rhs.m_active)
+        {
+            rhs.m_active = false;
+        }
+
         FuncHolder &operator=(FuncHolder &&) noexcept = delete;
 
         bool m_active;
