@@ -385,6 +385,35 @@ public:
         return 0;
     }
 
+    int ConnectExchangeTransMode()
+    {
+        Context *context = Context::GetContext();
+
+        ub_trans_mode localTransMode = context->GetUbTransMode();
+        if (SendSocketData(m_fd, &localTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
+            != sizeof(ub_trans_mode)) {
+            RPC_ADPT_VLOG_ERR("Failed to send local TransMode message in connect, fd: %d\n", m_fd);
+            return -1;
+        }
+
+        ub_trans_mode remoteTransMode;
+        if (RecvSocketData(m_fd, &remoteTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
+            != sizeof(ub_trans_mode)) {
+            RPC_ADPT_VLOG_ERR("Failed to receive remote TransMode message in connect, fd: %d\n", m_fd);
+            return -1;
+        }
+
+        if (localTransMode != remoteTransMode) {
+            if (remoteTransMode < localTransMode) {
+                context->SetUbTransMode(remoteTransMode);
+            } else {
+                context->SetUbTransMode(localTransMode);
+            }
+        }
+
+        return 0;
+    }
+
     int DoUbConnect(umq_eid_t &connEid)
     {
         CpMsg local_cp_msg;
@@ -455,6 +484,11 @@ public:
         if (SendSocketData(
             m_fd, &magic_number, sizeof(uint64_t), NEGOTIATE_TIMEOUT_MS) != sizeof(uint64_t)) {
             RPC_ADPT_VLOG_ERR("Failed to send magic number, fd: %d\n", m_fd);
+            return -1;
+        }
+
+        if (ConnectExchangeTransMode() != 0) {
+            RPC_ADPT_VLOG_ERR("Failed to exchange TransMode in connect\n");
             return -1;
         }
 
@@ -2164,8 +2198,9 @@ private:
         memset_s(&queue_cfg, sizeof(queue_cfg), 0, sizeof(queue_cfg));
         queue_cfg.trans_mode = context->GetTransMode();
         queue_cfg.create_flag = UMQ_CREATE_FLAG_TX_DEPTH | UMQ_CREATE_FLAG_RX_DEPTH |
-            UMQ_CREATE_FLAG_RX_BUF_SIZE | UMQ_CREATE_FLAG_TX_BUF_SIZE | UMQ_CREATE_FLAG_QUEUE_MODE |
-            UMQ_CREATE_FLAG_UMQ_CTX;
+                                UMQ_CREATE_FLAG_RX_BUF_SIZE | UMQ_CREATE_FLAG_TX_BUF_SIZE |
+                                UMQ_CREATE_FLAG_QUEUE_MODE | UMQ_CREATE_FLAG_TP_MODE |
+                                UMQ_CREATE_FLAG_TP_TYPE | UMQ_CREATE_FLAG_UMQ_CTX;
         queue_cfg.rx_depth = context->GetRxDepth();
         queue_cfg.tx_depth = context->GetTxDepth();
         queue_cfg.rx_buf_size = BrpcIOBufSize();
@@ -2218,6 +2253,21 @@ private:
             }
         }
 
+        ub_trans_mode trans_mode = context->GetUbTransMode();
+        if (trans_mode == RC_TP) {
+            queue_cfg.tp_mode = UMQ_TM_RC;
+            queue_cfg.tp_type = UMQ_TP_TYPE_RTP;
+        } else if (trans_mode == RM_TP) {
+            queue_cfg.tp_mode = UMQ_TM_RM;
+            queue_cfg.tp_type = UMQ_TP_TYPE_RTP;
+        } else if (trans_mode == RM_CTP) {
+            queue_cfg.tp_mode = UMQ_TM_RM;
+            queue_cfg.tp_type = UMQ_TP_TYPE_CTP;
+        } else if (trans_mode == RC_CTP) {
+            queue_cfg.tp_mode = UMQ_TM_RC;
+            queue_cfg.tp_type = UMQ_TP_TYPE_CTP;
+        }
+ 	 
         m_local_umqh = umq_create(&queue_cfg);
         if (m_local_umqh == UMQ_INVALID_HANDLE) {
             RPC_ADPT_VLOG_ERR("Failed to execute umq_create failed\n");
@@ -2300,6 +2350,35 @@ private:
         }
 
         return rx_total_len;
+    }
+
+    int AcceptExchangeTransMode(int new_fd)
+    {
+        Context *context = Context::GetContext();
+
+        ub_trans_mode remoteTransMode;
+        if (RecvSocketData(new_fd, &remoteTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
+            != sizeof(ub_trans_mode)) {
+            RPC_ADPT_VLOG_ERR("Failed to receive remote TransMode message in accept, fd: %d\n", new_fd);
+            return -1;
+        }
+
+        ub_trans_mode localTransMode = context->GetUbTransMode();
+        if (SendSocketData(new_fd, &localTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
+            != sizeof(ub_trans_mode)) {
+            RPC_ADPT_VLOG_ERR("Failed to send local TransMode message in connect, fd: %d\n", new_fd);
+            return -1;
+        }
+
+        if (localTransMode != remoteTransMode) {
+            if (remoteTransMode < localTransMode) {
+                context->SetUbTransMode(remoteTransMode);
+            } else {
+                context->SetUbTransMode(localTransMode);
+            }
+        }
+
+        return 0;
     }
 
     int AcceptExchangeEid(int new_fd, umq_eid_t &connEid, umq_eid_t &remoteEid, umq_route_t &connRoute)
@@ -2441,6 +2520,12 @@ private:
         } catch (std::exception& e) {
             OsAPiMgr::GetOriginApi()->close(event_fd);
             RPC_ADPT_VLOG_ERR("%s\n", e.what());
+            return -1;
+        }
+
+        if (AcceptExchangeTransMode(new_fd) != 0) {
+            RPC_ADPT_VLOG_ERR("Failed to exchange TransMode in accept\n");
+            delete socket_fd_obj;
             return -1;
         }
 

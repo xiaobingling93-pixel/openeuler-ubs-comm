@@ -27,6 +27,7 @@
 #define BLOCK_TYPE_STR_LEN_MAX    (64)
 #define DEV_SCHEDULE_POLICY_LEN_MAX (64)
 #define BOOL_STR_LEN_MAX          (8)
+#define UB_TRANS_MODE_STR_LEN_MAX    (8)
 #define DEFAULT_EID_IDX           (0)
 #define DEFAULT_TX_DEPTH          (1024)
 #define DEFAULT_RX_DEPTH          (1024)
@@ -63,10 +64,18 @@
 #define ENV_TRACE_TIME            "UBSOCKET_TRACE_TIME"
 #define ENV_TRACE_FILE_PATH       "UBSOCKET_TRACE_FILE_PATH"
 #define ENV_TRACE_FILE_SIZE       "UBSOCKET_TRACE_FILE_SIZE"
+#define ENV_UB_TRANS_MODE         "RPC_ADPT_UB_TRANS_MODE"
 
 enum dev_schedule_policy {
     ROUND_ROBIN = 1,
     CPU_AFFINITY
+};
+
+enum ub_trans_mode {
+    RC_TP,
+    RM_TP,
+    RM_CTP,
+    RC_CTP
 };
 
 template <typename T>
@@ -256,6 +265,23 @@ public:
         return m_ubsocket_trace_file_size;
     }
 
+    ub_trans_mode GetUbTransMode()
+    {
+        return m_ub_trans_mode;
+    }
+
+    void SetUbTransMode(ub_trans_mode trans_mode)
+    {
+        static const char *trans_mode_str[RC_CTP + 1] = {
+            "RC_TP",
+            "RM_TP",
+            "RM_CTP",
+            "RC_CTP"
+        };
+        m_ub_trans_mode = trans_mode;
+        RPC_ADPT_VLOG_INFO("urma transport mode: %s\n", trans_mode_str[m_ub_trans_mode]);
+    }
+
 protected:
     static void ReadEnvVar(char *env_ptr, char *output_str, uint32_t output_str_len)
     {
@@ -382,6 +408,27 @@ protected:
                 m_ubsocket_trace_file_size = ubsocket_trace_file_size;
             }
         }
+        GetEnvUbTransMode();
+    }
+
+    void GetEnvUbTransMode()
+    {
+        char *env_ptr;
+        if ((env_ptr = getenv(ENV_UB_TRANS_MODE)) != NULL) {
+            ReadEnvVar(env_ptr, m_ub_trans_mode_str, sizeof(m_ub_trans_mode_str));
+            if (memcmp(m_ub_trans_mode_str, "RM_TP", strlen(m_ub_trans_mode_str)) == 0) {
+                m_ub_trans_mode = ub_trans_mode::RM_TP;
+            } else if (memcmp(m_ub_trans_mode_str, "RM_CTP", strlen(m_ub_trans_mode_str)) == 0) {
+                m_ub_trans_mode = ub_trans_mode::RM_CTP;
+            } else if (memcmp(m_ub_trans_mode_str, "RC_TP", strlen(m_ub_trans_mode_str)) == 0) {
+                m_ub_trans_mode = ub_trans_mode::RC_TP;
+            } else if (memcmp(m_ub_trans_mode_str, "RC_CTP", strlen(m_ub_trans_mode_str)) == 0) {
+                m_ub_trans_mode = ub_trans_mode::RC_CTP;
+            } else {
+                (void)strcpy_s(m_ub_trans_mode_str, sizeof(m_ub_trans_mode_str), "RC_TP");
+                m_ub_trans_mode = ub_trans_mode::RC_TP;
+            }
+        }
     }
 
     void SetSocketFdTransMode(socket_fd_trans_mode trans_mode)
@@ -408,6 +455,7 @@ protected:
     char m_ubsocket_trace_file_path[UBSOCKET_TRACE_FILE_PATH_LEN_MAX] = "";
     uint64_t m_ubsocket_trace_time = UBSOCKET_TRACE_TIME_DEFAULT;
     uint64_t m_ubsocket_trace_file_size = UBSOCKET_TRACE_FILE_SIZE_DEFAULT;
+    char m_ub_trans_mode_str[UB_TRANS_MODE_STR_LEN_MAX] = "";
     umq_eid_t m_src_eid;
     uint32_t m_tx_depth = DEFAULT_TX_DEPTH;
     uint32_t m_rx_depth = DEFAULT_RX_DEPTH;
@@ -423,6 +471,7 @@ protected:
     bool m_trace_enable = false;
     bool m_log_use_printf = false;
     dev_schedule_policy m_dev_schedule_policy = dev_schedule_policy::CPU_AFFINITY;
+    ub_trans_mode m_ub_trans_mode = ub_trans_mode::RC_TP;
 };
 
 #endif
