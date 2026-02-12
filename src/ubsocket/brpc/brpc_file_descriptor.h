@@ -28,6 +28,7 @@
 #include "statistics.h"
 #include "share_jfr_common.h"
 #include "cli_message.h"
+#include "umq_dfx_types.h"
 
 #define UMQ_BIND_INFO_SIZE_MAX  (512)
 #define UMQ_BIND_SYNC_MSG       "SYNC_DONE"

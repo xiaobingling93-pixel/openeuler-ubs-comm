@@ -18,6 +18,10 @@
 #include "umq_errno.h"
 #include "urpc_util.h"
 
+#ifdef UMQ_STATIC_LIB
+#include "umq_ub_api.h"
+#endif
+
 #define MAX_SO_NAME_LEN     (32)
 #define MAX_FUNCNAME_LEN    (32)
 
@@ -36,6 +40,10 @@ typedef struct umq_framework {
     char pro_ops_get_funcname[MAX_FUNCNAME_LEN];
     umq_pro_ops_get_t pro_ops_get_func;
     umq_pro_ops_t *pro_tp_ops;
+
+    char dfx_ops_get_funcname[MAX_FUNCNAME_LEN];
+    umq_dfx_ops_get_t dfx_ops_get_func;
+    umq_dfx_ops_t *dfx_tp_ops;
 } umq_framework_t;
 
 static bool g_umq_inited = false;
@@ -55,13 +63,29 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .dlhandler = NULL,
 
         .ops_get_funcname = "umq_ub_ops_get",
+#ifdef UMQ_STATIC_LIB
+        .ops_get_func = umq_ub_ops_get,
+#else
         .ops_get_func = NULL,
+#endif
         .tp_ops = NULL,
         .ctx = NULL,
 
         .pro_ops_get_funcname = "umq_pro_ub_ops_get",
+#ifdef UMQ_STATIC_LIB
+        .pro_ops_get_func = umq_pro_ub_ops_get,
+#else
         .pro_ops_get_func = NULL,
+#endif
         .pro_tp_ops = NULL,
+
+        .dfx_ops_get_funcname = "umq_ub_dfx_ops_get",
+#ifdef UMQ_STATIC_LIB
+        .dfx_ops_get_func = umq_ub_dfx_ops_get,
+#else
+        .dfx_ops_get_func = NULL,
+#endif
+        .dfx_tp_ops = NULL,
     },
     [UMQ_TRANS_MODE_IB] = {
         .mode = UMQ_TRANS_MODE_IB,
@@ -78,6 +102,10 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .pro_ops_get_funcname = "umq_pro_ib_ops_get",
         .pro_ops_get_func = NULL,
         .pro_tp_ops = NULL,
+
+        .dfx_ops_get_funcname = "umq_ib_dfx_ops_get",
+        .dfx_ops_get_func = NULL,
+        .dfx_tp_ops = NULL,
     },
     [UMQ_TRANS_MODE_UCP] = {
         .mode = UMQ_TRANS_MODE_UCP,
@@ -94,6 +122,10 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .pro_ops_get_funcname = "umq_pro_ucp_ops_get",
         .pro_ops_get_func = NULL,
         .pro_tp_ops = NULL,
+
+        .dfx_ops_get_funcname = "umq_ucp_dfx_ops_get",
+        .dfx_ops_get_func = NULL,
+        .dfx_tp_ops = NULL,
     },
     [UMQ_TRANS_MODE_IPC] = {
         .mode = UMQ_TRANS_MODE_IPC,
@@ -110,6 +142,10 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .pro_ops_get_funcname = "umq_pro_ipc_ops_get",
         .pro_ops_get_func = NULL,
         .pro_tp_ops = NULL,
+
+        .dfx_ops_get_funcname = "umq_ipc_dfx_ops_get",
+        .dfx_ops_get_func = NULL,
+        .dfx_tp_ops = NULL,
     },
     [UMQ_TRANS_MODE_UBMM] = {
         .mode = UMQ_TRANS_MODE_UBMM,
@@ -126,6 +162,10 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .pro_ops_get_funcname = "umq_pro_ubmm_ops_get",
         .pro_ops_get_func = NULL,
         .pro_tp_ops = NULL,
+
+        .dfx_ops_get_funcname = "umq_ubmm_dfx_ops_get",
+        .dfx_ops_get_func = NULL,
+        .dfx_tp_ops = NULL,
     },
     [UMQ_TRANS_MODE_UB_PLUS] = {
         .mode = UMQ_TRANS_MODE_UB_PLUS,
@@ -135,13 +175,29 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .dlhandler = NULL,
 
         .ops_get_funcname = "umq_ub_plus_ops_get",
+#ifdef UMQ_STATIC_LIB
+        .ops_get_func = umq_ub_plus_ops_get,
+#else
         .ops_get_func = NULL,
+#endif
         .tp_ops = NULL,
         .ctx = NULL,
 
         .pro_ops_get_funcname = "umq_pro_ub_plus_ops_get",
+#ifdef UMQ_STATIC_LIB
+        .pro_ops_get_func = umq_pro_ub_plus_ops_get,
+#else
         .pro_ops_get_func = NULL,
+#endif
         .pro_tp_ops = NULL,
+
+        .dfx_ops_get_funcname = "umq_ub_plus_dfx_ops_get",
+#ifdef UMQ_STATIC_LIB
+        .dfx_ops_get_func = umq_ub_plus_dfx_ops_get,
+#else
+        .dfx_ops_get_func = NULL,
+#endif
+        .dfx_tp_ops = NULL,
     },
     [UMQ_TRANS_MODE_IB_PLUS] = {
         .mode = UMQ_TRANS_MODE_IB_PLUS,
@@ -158,6 +214,10 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .pro_ops_get_funcname = "umq_pro_ib_plus_ops_get",
         .pro_ops_get_func = NULL,
         .pro_tp_ops = NULL,
+
+        .dfx_ops_get_funcname = "umq_ib_plus_dfx_ops_get",
+        .dfx_ops_get_func = NULL,
+        .dfx_tp_ops = NULL,
     },
     [UMQ_TRANS_MODE_UBMM_PLUS] = {
         .mode = UMQ_TRANS_MODE_UBMM_PLUS,
@@ -174,28 +234,28 @@ static umq_framework_t g_umq_fws[UMQ_TRANS_MODE_MAX] = {
         .pro_ops_get_funcname = "umq_pro_ubmm_plus_ops_get",
         .pro_ops_get_func = NULL,
         .pro_tp_ops = NULL,
+        .dfx_ops_get_funcname = "umq_ubmm_plus_dfx_ops_get",
+        .dfx_ops_get_func = NULL,
+        .dfx_tp_ops = NULL,
     },
-};
-
-static user_ctl_func g_umq_user_ctl_func[UMQ_TRANS_MODE_MAX] = {
-    [UMQ_OPCODE_FLOW_CONTROL_STATS_QUERY] = NULL,
-    [UMQ_OPCODE_QBUF_POOL_INFO_QUERY] = umq_qbuf_pool_info_get
 };
 
 static int umq_fw_log_config_set(umq_log_config_t *config)
 {
     uint8_t fw_i = 0;
+    int ret = UMQ_SUCCESS;
     for (; fw_i < UMQ_TRANS_MODE_MAX; fw_i++) {
         umq_framework_t *umq_fw = &g_umq_fws[fw_i];
         if (!umq_fw->enable) {
             continue;
         }
         if ((umq_fw == NULL) || (umq_fw->tp_ops == NULL) || (umq_fw->tp_ops->umq_tp_log_config_set == NULL)) {
-            UMQ_VLOG_ERR("umq_fw invalid\n");
+            UMQ_VLOG_ERR(VLOG_UMQ, "umq_fw invalid\n");
             goto RESET_LOG;
         }
-        if (umq_fw->tp_ops->umq_tp_log_config_set(config) != UMQ_SUCCESS) {
-            UMQ_VLOG_ERR("log config set failed\n");
+        ret = umq_fw->tp_ops->umq_tp_log_config_set(config);
+        if (ret != UMQ_SUCCESS) {
+            UMQ_VLOG_ERR(VLOG_UMQ, "log config set failed, status: %d\n", ret);
             goto RESET_LOG;
         }
     }
@@ -207,8 +267,9 @@ RESET_LOG:
         if (!umq_fw->enable) {
             continue;
         }
-        if (umq_fw->tp_ops->umq_tp_log_config_reset() != UMQ_SUCCESS) {
-            UMQ_VLOG_ERR("log config reset failed, j = %u\n", j);
+        ret = umq_fw->tp_ops->umq_tp_log_config_reset();
+        if (ret != UMQ_SUCCESS) {
+            UMQ_VLOG_ERR(VLOG_UMQ, "log config reset failed, j = %u, status: %d\n", j, ret);
         }
     }
     return -UMQ_ERR_EINVAL;
@@ -217,13 +278,13 @@ RESET_LOG:
 int umq_log_config_set(umq_log_config_t *config)
 {
     if (config == NULL) {
-        UMQ_VLOG_ERR("invalid configure\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "invalid configure\n");
         return -UMQ_ERR_EINVAL;
     }
 
     if ((config->log_flag & UMQ_LOG_FLAG_LEVEL) &&
         (config->level < UMQ_LOG_LEVEL_EMERG || config->level >= UMQ_LOG_LEVEL_MAX)) {
-        UMQ_VLOG_ERR("invalid log level %d\n", config->level);
+        UMQ_VLOG_ERR(VLOG_UMQ, "invalid log level %d\n", config->level);
         return -UMQ_ERR_EINVAL;
     }
 
@@ -232,16 +293,16 @@ int umq_log_config_set(umq_log_config_t *config)
     if (config->log_flag & UMQ_LOG_FLAG_FUNC) {
         if (config->func == NULL) {
             log_config->ctx.vlog_output_func = default_vlog_output;
-            UMQ_VLOG_INFO("set log configuration successful, log output function: default\n");
+            UMQ_VLOG_INFO(VLOG_UMQ, "set log configuration success, log output function: default\n");
         } else {
             log_config->ctx.vlog_output_func = config->func;
-            UMQ_VLOG_INFO("set log configuration successful, log output function: user defined\n");
+            UMQ_VLOG_INFO(VLOG_UMQ, "set log configuration success, log output function: user defined\n");
         }
     }
 
     if (config->log_flag & UMQ_LOG_FLAG_LEVEL) {
         log_config->ctx.level = (util_vlog_level_t)config->level;
-        UMQ_VLOG_INFO("set log configuration successful, log level: %d\n", config->level);
+        UMQ_VLOG_INFO(VLOG_UMQ, "set log configuration success, log level: %d\n", config->level);
     }
     if (umq_fw_log_config_set(config) != UMQ_SUCCESS) {
         (void)pthread_mutex_unlock(&log_config->log_lock);
@@ -250,7 +311,7 @@ int umq_log_config_set(umq_log_config_t *config)
     if ((config->log_flag & UMQ_LOG_FLAG_RATE_LIMITED)) {
         log_config->ctx.rate_limited.interval_ms = config->rate_limited.interval_ms;
         log_config->ctx.rate_limited.num = config->rate_limited.num;
-        UMQ_VLOG_INFO("set log configuration successful, limited interval(ms): %u, limited num: %u\n",
+        UMQ_VLOG_INFO(VLOG_UMQ, "set log configuration success, limited interval(ms): %u, limited num: %u\n",
                       config->rate_limited.interval_ms, config->rate_limited.num);
     }
     (void)pthread_mutex_unlock(&log_config->log_lock);
@@ -264,7 +325,7 @@ int umq_log_config_set(umq_log_config_t *config)
 int umq_log_config_get(umq_log_config_t *config)
 {
     if (config == NULL) {
-        UMQ_VLOG_ERR("invalid parameter\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "invalid parameter\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -287,6 +348,8 @@ static void framework_uninit(void)
 {
     for (uint8_t fw_i = 0; fw_i < UMQ_TRANS_MODE_MAX; fw_i++) {
         umq_framework_t *umq_fw = &g_umq_fws[fw_i];
+        umq_fw->dfx_tp_ops = NULL;
+        umq_fw->dfx_ops_get_func = NULL;
         umq_fw->pro_tp_ops = NULL;
         umq_fw->pro_ops_get_func = NULL;
 
@@ -312,7 +375,7 @@ static void framework_uninit(void)
 void umq_uninit(void)
 {
     if (!g_umq_inited) {
-        UMQ_VLOG_ERR("umq has not been inited\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq has not been inited\n");
         return;
     }
 
@@ -327,66 +390,99 @@ void umq_uninit(void)
     g_umq_inited = false;
 }
 
+#ifndef UMQ_STATIC_LIB
 static int load_symbol(void *handle, void **func, const char *symbol)
 {
     *func = dlsym(handle, symbol);
     if (*func == NULL) {
-        UMQ_VLOG_ERR("dlsym failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "dlsym failed, err: %s\n", dlerror());
         return UMQ_FAIL;
     }
     return UMQ_SUCCESS;
 }
+#endif
 
 static int umq_framework_init(umq_framework_t *umq_fw, umq_init_cfg_t *cfg)
 {
+    int ret = UMQ_SUCCESS;
+#ifndef UMQ_STATIC_LIB
     umq_fw->dlhandler = dlopen(umq_fw->dlopen_so_name, RTLD_LAZY | RTLD_GLOBAL);
     if (umq_fw->dlhandler == NULL) {
-        UMQ_VLOG_ERR("open so failed, err: %s\n", dlerror());
+        UMQ_VLOG_ERR(VLOG_UMQ, "open so failed, err: %s\n", dlerror());
         return UMQ_FAIL;
     }
 
-    if (load_symbol(umq_fw->dlhandler,
-        (void **)&umq_fw->ops_get_func, umq_fw->ops_get_funcname) != UMQ_SUCCESS) {
-        UMQ_VLOG_ERR("load_symbol ops failed\n");
+    ret = load_symbol(umq_fw->dlhandler, (void **)&umq_fw->ops_get_func, umq_fw->ops_get_funcname);
+    if (ret != UMQ_SUCCESS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "load_symbol ops failed, status: %d\n", ret);
         goto CLONE_SO;
     }
+#endif
 
     umq_fw->tp_ops = umq_fw->ops_get_func();
     if ((umq_fw->tp_ops == NULL) || (umq_fw->tp_ops->umq_tp_init == NULL)) {
-        UMQ_VLOG_ERR("get ops func failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "get ops func failed\n");
         goto UNLOAD_OPS_GET_FUNC;
     }
 
     // register log func if needed
     if (g_umq_log_config.is_set && umq_fw->tp_ops->umq_tp_log_config_set != NULL) {
-        if (umq_fw->tp_ops->umq_tp_log_config_set(&g_umq_log_config.cfg) != UMQ_SUCCESS) {
+        ret = umq_fw->tp_ops->umq_tp_log_config_set(&g_umq_log_config.cfg);
+        if (ret != UMQ_SUCCESS) {
+            UMQ_VLOG_ERR(VLOG_UMQ, "log config set failed, status: %d\n", ret);
             goto PUT_TP_OPS;
         }
     }
     umq_fw->ctx = umq_fw->tp_ops->umq_tp_init(cfg);
     if (umq_fw->ctx == NULL) {
-        UMQ_VLOG_ERR("tp init failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "tp init failed\n");
         goto RESET_LOG;
     }
 
-    if (load_symbol(umq_fw->dlhandler,
-        (void **)&umq_fw->pro_ops_get_func, umq_fw->pro_ops_get_funcname) != UMQ_SUCCESS) {
-        UMQ_VLOG_ERR("load_symbol pro_ops failed\n");
+#ifndef UMQ_STATIC_LIB
+    ret = load_symbol(umq_fw->dlhandler, (void **)&umq_fw->pro_ops_get_func, umq_fw->pro_ops_get_funcname);
+    if (ret != UMQ_SUCCESS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "load_symbol pro_ops failed, status: %d\n", ret);
         goto UNINIT_UMQ_TP;
     }
+#endif
 
     umq_fw->pro_tp_ops = umq_fw->pro_ops_get_func();
     if (umq_fw->pro_tp_ops == NULL) {
-        UMQ_VLOG_ERR("get pro_ops func failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "get pro_ops func failed\n");
         goto UNLOAD_PRO_OPS_GET_FUNC;
+    }
+
+#ifndef UMQ_STATIC_LIB
+    if (load_symbol(umq_fw->dlhandler,
+        (void **)&umq_fw->dfx_ops_get_func, umq_fw->dfx_ops_get_funcname) != UMQ_SUCCESS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "load_symbol dfx_ops failed\n");
+        goto PUT_PRO_TP_OPS;
+    }
+#endif
+
+    umq_fw->dfx_tp_ops = umq_fw->dfx_ops_get_func();
+    if (umq_fw->dfx_tp_ops == NULL) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "get dfx_ops func failed\n");
+        goto UNLOAD_DFX_OPS_GET_FUNC;
     }
 
     return UMQ_SUCCESS;
 
+UNLOAD_DFX_OPS_GET_FUNC:
+#ifndef UMQ_STATIC_LIB
+    umq_fw->dfx_ops_get_func = NULL;
+
+PUT_PRO_TP_OPS:
+#endif
+    umq_fw->pro_tp_ops = NULL;
+
 UNLOAD_PRO_OPS_GET_FUNC:
+#ifndef UMQ_STATIC_LIB
     umq_fw->pro_ops_get_func = NULL;
 
 UNINIT_UMQ_TP:
+#endif
     if (umq_fw->tp_ops->umq_tp_uninit != NULL) {
         umq_fw->tp_ops->umq_tp_uninit(umq_fw->ctx);
         umq_fw->ctx = NULL;
@@ -401,9 +497,11 @@ PUT_TP_OPS:
     umq_fw->tp_ops = NULL;
 
 UNLOAD_OPS_GET_FUNC:
+#ifndef UMQ_STATIC_LIB
     umq_fw->ops_get_func = NULL;
 
 CLONE_SO:
+#endif
     if (umq_fw->dlhandler != NULL) {
         dlclose(umq_fw->dlhandler);
     }
@@ -411,31 +509,56 @@ CLONE_SO:
     return UMQ_FAIL;
 }
 
+static void umq_init_cfg_dummy_dev_filter(umq_init_cfg_t *cfg)
+{
+    uint8_t i, j;
+    umq_trans_info_t *src, *dst;
+    for (i = 0, j = 0; i < cfg->trans_info_num && j < cfg->trans_info_num;) {
+        src = &cfg->trans_info[i];
+        dst = &cfg->trans_info[j];
+
+        if (src->dev_info.assign_mode == UMQ_DEV_ASSIGN_MODE_DUMMY) {
+            i++;
+            continue;
+        }
+
+        memcpy(dst, src, sizeof(umq_trans_info_t));
+        i++;
+        j++;
+    }
+
+    cfg->trans_info_num = j;
+}
+
 int umq_init(umq_init_cfg_t *cfg)
 {
+    int ret = UMQ_SUCCESS;
     if (g_umq_inited) {
-        UMQ_VLOG_ERR("umq has already been inited\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq has already been inited\n");
         return -UMQ_ERR_EEXIST;
     }
 
     if (cfg == NULL) {
-        UMQ_VLOG_ERR("cfg is null\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "cfg is null\n");
         return -UMQ_ERR_EINVAL;
     }
 
     if (cfg->trans_info_num > MAX_UMQ_TRANS_INFO_NUM) {
-        UMQ_VLOG_ERR("trans_info_num[%u] is invalid\n", cfg->trans_info_num);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans_info_num[%u] is invalid\n", cfg->trans_info_num);
         return -UMQ_ERR_EINVAL;
     }
 
     if (cfg->headroom_size > UMQ_HEADROOM_SIZE_LIMIT) {
-        UMQ_VLOG_ERR("headroom size %u exceeds the maximum value\n", cfg->headroom_size);
+        UMQ_VLOG_ERR(VLOG_UMQ, "headroom size %u exceeds the maximum value\n", cfg->headroom_size);
         return -UMQ_ERR_EINVAL;
     }
 
-    if ((cfg->feature & UMQ_FEATURE_ENABLE_TOKEN_POLICY) != 0 && urpc_rand_seed_init() != 0) {
-        UMQ_VLOG_ERR("rand seed init failed\n");
-        return -UMQ_ERR_EINVAL;
+    if ((cfg->feature & UMQ_FEATURE_ENABLE_TOKEN_POLICY) != 0) {
+        ret = urpc_rand_seed_init();
+        if (ret != 0) {
+            UMQ_VLOG_ERR(VLOG_UMQ, "rand seed init failed, status: %u\n", ret);
+            return ret;
+        }
     }
 
     if (umq_buf_size_pow_small_set(cfg->block_cfg.small_block_size) != UMQ_SUCCESS) {
@@ -444,6 +567,12 @@ int umq_init(umq_init_cfg_t *cfg)
 
     for (uint8_t trans_info_i = 0; trans_info_i < cfg->trans_info_num; trans_info_i++) {
         umq_trans_info_t *info = &cfg->trans_info[trans_info_i];
+#ifdef UMQ_STATIC_LIB
+        if (info->trans_mode != UMQ_TRANS_MODE_UB && info->trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+            UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+            return -UMQ_ERR_EINVAL;
+        }
+#endif
         if (info->trans_mode >= UMQ_TRANS_MODE_MAX || info->trans_mode < 0) {
             continue;
         }
@@ -456,24 +585,28 @@ int umq_init(umq_init_cfg_t *cfg)
         if (!umq_fw->enable) {
             continue;
         }
-
-        if (umq_framework_init(umq_fw, cfg) != UMQ_SUCCESS) {
-            UMQ_VLOG_ERR("trans mode %u umq framework init failed\n", fw_i);
+        ret = umq_framework_init(umq_fw, cfg);
+        if (ret != UMQ_SUCCESS) {
+            UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u umq framework init failed, status: %d\n", fw_i, ret);
             goto FW_UNINIT;
         }
     }
 
-    if (umq_dfx_init(cfg) != UMQ_SUCCESS) {
-        UMQ_VLOG_ERR("umq dfx init failed\n");
+    ret = umq_dfx_init(cfg);
+    if (ret != UMQ_SUCCESS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq dfx init failed, status: %u\n", ret);
         goto FW_UNINIT;
     }
 
     g_umq_config = (umq_init_cfg_t *)malloc(sizeof(umq_init_cfg_t));
     if (g_umq_config == NULL) {
-        UMQ_VLOG_ERR("malloc umq config failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "malloc umq config failed\n");
+        ret = -UMQ_ERR_ENOMEM;
         goto DFX_UNINIT;
     }
     (void)memcpy(g_umq_config, cfg, sizeof(umq_init_cfg_t));
+
+    umq_init_cfg_dummy_dev_filter(g_umq_config);
 
     g_umq_inited = true;
     return UMQ_SUCCESS;
@@ -483,44 +616,52 @@ DFX_UNINIT:
 
 FW_UNINIT:
     framework_uninit();
-    return UMQ_FAIL;
+    return ret;
 }
 
 uint64_t umq_create(umq_create_option_t *option)
 {
     if (option == NULL) {
-        UMQ_VLOG_ERR("create option is null\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "create option is null\n");
         return UMQ_INVALID_HANDLE;
     }
 
+#ifdef UMQ_STATIC_LIB
+    if (option->trans_mode != UMQ_TRANS_MODE_UB && option->trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return UMQ_INVALID_HANDLE;
+    }
+#endif
+
     if ((option->trans_mode >= UMQ_TRANS_MODE_MAX) || (option->trans_mode < 0) || (option->name[0] == '\0')) {
-        UMQ_VLOG_ERR("trans_mode[%d] not support or name is null\n", option->trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans_mode[%d] not support or name is null\n", option->trans_mode);
         return UMQ_INVALID_HANDLE;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[option->trans_mode];
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("trans_mode[%d] is not enabled on initialize\n", option->trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans_mode[%d] is not enabled on initialize\n", option->trans_mode);
         return UMQ_INVALID_HANDLE;
     }
 
     umq_t *umq = calloc(1, sizeof(umq_t));
     if (umq == NULL) {
-        UMQ_VLOG_ERR("alloc umq failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "alloc umq failed\n");
         return UMQ_INVALID_HANDLE;
     }
     umq->mode = option->trans_mode;
     umq->tp_ops = umq_fw->tp_ops;
     umq->pro_tp_ops = umq_fw->pro_tp_ops;
     if (umq->tp_ops->umq_tp_create == NULL) {
-        UMQ_VLOG_ERR("tp create function is null\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "tp create function is null\n");
         goto ERR;
     }
     umq->umqh_tp = umq->tp_ops->umq_tp_create((uint64_t)(uintptr_t)umq, umq_fw->ctx, option);
     if (umq->umqh_tp == 0) {
-        UMQ_VLOG_ERR("create transport resource failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "create transport resource failed\n");
         goto ERR;
     }
+    umq->dfx_tp_ops = umq_fw->dfx_tp_ops;
 
     return (uint64_t)(uintptr_t)umq;
 ERR:
@@ -535,7 +676,7 @@ int umq_destroy(uint64_t umqh)
 
     if ((umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_destroy == NULL)) {
-        UMQ_VLOG_ERR("umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -555,7 +696,7 @@ uint32_t umq_bind_info_get(uint64_t umqh, uint8_t *bind_info, uint32_t bind_info
     if ((bind_info == NULL) || (umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_bind_info_get == NULL)) {
         errno = UMQ_ERR_EINVAL;
-        UMQ_VLOG_ERR("bind_info or umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "bind_info or umqh invalid, errno: %d\n", errno);
         return 0;
     }
 
@@ -568,7 +709,7 @@ int umq_bind(uint64_t umqh, uint8_t *bind_info, uint32_t bind_info_size)
 
     if ((bind_info == NULL) || (umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_bind == NULL)) {
-        UMQ_VLOG_ERR("bind_info or umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "bind_info or umqh invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -581,7 +722,7 @@ int umq_unbind(uint64_t umqh)
 
     if ((umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_unbind == NULL)) {
-        UMQ_VLOG_ERR("umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -591,13 +732,13 @@ int umq_unbind(uint64_t umqh)
 umq_buf_t *umq_buf_alloc(uint32_t request_size, uint32_t request_qbuf_num, uint64_t umqh, umq_alloc_option_t *option)
 {
     if (!g_umq_inited || request_qbuf_num == 0 || request_size > UMQ_MAX_BUF_REQUEST_SIZE) {
-        UMQ_VLOG_ERR("param invalid or umq not initialized\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "param invalid or umq not initialized\n");
         return NULL;
     }
     uint32_t headroom_size = (option != NULL && (option->flag & UMQ_ALLOC_FLAG_HEAD_ROOM_SIZE) != 0) ?
         option->headroom_size : umq_qbuf_headroom_get();
     if (headroom_size > UMQ_HEADROOM_SIZE_LIMIT) {
-        UMQ_VLOG_ERR("headroom size %u exceeds the maximum value\n", headroom_size);
+        UMQ_VLOG_ERR(VLOG_UMQ, "headroom size %u exceeds the maximum value\n", headroom_size);
         return NULL;
     }
     umq_buf_mode_t mode = umq_qbuf_mode_get();
@@ -624,7 +765,7 @@ umq_buf_t *umq_buf_alloc(uint32_t request_size, uint32_t request_qbuf_num, uint6
     umq_t *umq = (umq_t *)(uintptr_t)umqh;
     if ((umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_buf_alloc == NULL)) {
-        UMQ_VLOG_ERR("umqh or qbuf invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh or qbuf invalid\n");
         return NULL;
     }
 
@@ -695,7 +836,7 @@ void umq_buf_free(umq_buf_t *qbuf)
     umq_t *umq = (umq_t *)(uintptr_t)qbuf->umqh;
     if ((umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_buf_free == NULL)) {
-        UMQ_VLOG_ERR("umqh or qbuf invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh or qbuf invalid\n");
         return;
     }
 
@@ -705,13 +846,17 @@ void umq_buf_free(umq_buf_t *qbuf)
 umq_buf_t *umq_buf_break_and_free(umq_buf_t *qbuf)
 {
     if (!g_umq_inited || qbuf == NULL) {
-        UMQ_VLOG_ERR("umq not initialized or qbuf is NULL\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq not initialized or qbuf is NULL\n");
         return NULL;
     }
     // break qbuf list for many batchs connected, only release the first batch.
     umq_buf_t *next_batch_qbuf = qbuf->qbuf_next; /* if request_size = 0, return qbuf->qbuf_next */
     umq_buf_t *tmp_buf = qbuf;
     uint32_t rest_data_size = tmp_buf->total_data_size;
+    if (rest_data_size == 0) {
+        qbuf->qbuf_next = NULL;
+        goto FREE_BUF;
+    }
     while (tmp_buf && rest_data_size > 0) {
         if (rest_data_size <= tmp_buf->data_size) {
             next_batch_qbuf = tmp_buf->qbuf_next;
@@ -721,6 +866,7 @@ umq_buf_t *umq_buf_break_and_free(umq_buf_t *qbuf)
         rest_data_size -= tmp_buf->data_size;
         tmp_buf = tmp_buf->qbuf_next;
     }
+FREE_BUF:
     umq_buf_free(qbuf);
     return next_batch_qbuf;
 }
@@ -732,7 +878,7 @@ int umq_buf_headroom_reset(umq_buf_t *qbuf, uint16_t headroom_size)
     }
 
     if (headroom_size > UMQ_HEADROOM_SIZE_LIMIT) {
-        UMQ_VLOG_ERR("headroom size %u exceeds the maximum value\n", headroom_size);
+        UMQ_VLOG_ERR(VLOG_UMQ, "headroom size %u exceeds the maximum value\n", headroom_size);
         return -UMQ_ERR_EINVAL;
     }
 
@@ -747,7 +893,7 @@ int umq_buf_headroom_reset(umq_buf_t *qbuf, uint16_t headroom_size)
     umq_t *umq = (umq_t *)(uintptr_t)qbuf->umqh;
     if ((umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_buf_headroom_reset == NULL)) {
-        UMQ_VLOG_ERR("umqh or tp invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh or tp invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -798,7 +944,7 @@ int umq_enqueue(uint64_t umqh, umq_buf_t *qbuf, umq_buf_t **bad_qbuf)
 
     if ((umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_enqueue == NULL) || qbuf == NULL || qbuf->buf_data == NULL || bad_qbuf == NULL) {
-        UMQ_VLOG_ERR("umqh or qbuf invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh or qbuf invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -823,7 +969,7 @@ umq_buf_t *umq_dequeue(uint64_t umqh)
 
     if ((umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_dequeue == NULL)) {
-        UMQ_VLOG_ERR("umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh invalid\n");
         return NULL;
     }
 
@@ -839,7 +985,7 @@ void umq_notify(uint64_t umqh)
 
     if ((umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_notify == NULL)) {
-        UMQ_VLOG_ERR("umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh invalid\n");
         return;
     }
 
@@ -854,7 +1000,7 @@ int umq_rearm_interrupt(uint64_t umqh, bool solicated, umq_interrupt_option_t *o
 
     if (option == NULL || (umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_rearm_interrupt == NULL)) {
-        UMQ_VLOG_ERR("umqh or option invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh or option invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -867,7 +1013,7 @@ int32_t umq_wait_interrupt(uint64_t wait_umqh, int time_out, umq_interrupt_optio
 
     if (option == NULL || (umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_wait_interrupt == NULL)) {
-        UMQ_VLOG_ERR("umqh or option invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh or option invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -880,7 +1026,7 @@ void umq_ack_interrupt(uint64_t umqh, uint32_t nevents, umq_interrupt_option_t *
 
     if (option == NULL || (umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_ack_interrupt == NULL)) {
-        UMQ_VLOG_ERR("umqh or option invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh or option invalid\n");
         return;
     }
 
@@ -890,11 +1036,11 @@ void umq_ack_interrupt(uint64_t umqh, uint32_t nevents, umq_interrupt_option_t *
 int umq_buf_split(umq_buf_t *head, umq_buf_t *node)
 {
     if (!g_umq_inited) {
-        UMQ_VLOG_ERR("umq not initialized\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq not initialized\n");
         return -UMQ_ERR_EINVAL;
     }
     if (head == NULL || node == NULL || head == node) {
-        UMQ_VLOG_ERR("head or node invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "head or node invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -904,7 +1050,7 @@ int umq_buf_split(umq_buf_t *head, umq_buf_t *node)
     }
 
     if (tmp->qbuf_next == NULL) {
-        UMQ_VLOG_ERR("target node not found in the buf list\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "target node not found in the buf list\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -918,7 +1064,7 @@ int umq_state_set(uint64_t umqh, umq_state_t state)
 
     if ((umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_state_set == NULL)) {
-        UMQ_VLOG_ERR("umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -931,7 +1077,7 @@ umq_state_t umq_state_get(uint64_t umqh)
 
     if ((umq == NULL) || (umq->umqh_tp == UMQ_INVALID_HANDLE) || (umq->tp_ops == NULL) ||
         (umq->tp_ops->umq_tp_state_get == NULL)) {
-        UMQ_VLOG_ERR("umqh invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umqh invalid\n");
         return QUEUE_STATE_MAX;
     }
 
@@ -940,19 +1086,26 @@ umq_state_t umq_state_get(uint64_t umqh)
 
 int umq_async_event_fd_get(umq_trans_info_t *trans_info)
 {
+#ifdef UMQ_STATIC_LIB
+    if (trans_info->trans_mode != UMQ_TRANS_MODE_UB && trans_info->trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return -UMQ_ERR_EINVAL;
+    }
+#endif
+
     if (trans_info == NULL || trans_info->trans_mode >= UMQ_TRANS_MODE_MAX || trans_info->trans_mode < 0) {
-        UMQ_VLOG_ERR("trans info invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans info invalid\n");
         return UMQ_INVALID_FD;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[trans_info->trans_mode];
 
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("framework instance disabled\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "framework instance disabled\n");
         return UMQ_INVALID_FD;
     }
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_async_event_fd_get == NULL) {
-        UMQ_VLOG_ERR("get event fd failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "get event fd failed\n");
         return UMQ_INVALID_FD;
     }
     return umq_fw->tp_ops->umq_tp_async_event_fd_get(trans_info);
@@ -960,20 +1113,27 @@ int umq_async_event_fd_get(umq_trans_info_t *trans_info)
 
 int umq_get_async_event(umq_trans_info_t *trans_info, umq_async_event_t *event)
 {
+#ifdef UMQ_STATIC_LIB
+    if (trans_info->trans_mode != UMQ_TRANS_MODE_UB && trans_info->trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return -UMQ_ERR_EINVAL;
+    }
+#endif
+
     if (event == NULL || trans_info == NULL || trans_info->trans_mode >= UMQ_TRANS_MODE_MAX ||
         trans_info->trans_mode < 0) {
-        UMQ_VLOG_ERR("trans info invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans info invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[trans_info->trans_mode];
 
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("framework instance disabled\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "framework instance disabled\n");
         return -UMQ_ERR_EINVAL;
     }
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_async_event_get == NULL) {
-        UMQ_VLOG_ERR("ops invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "ops invalid\n");
         return -UMQ_ERR_EINVAL;
     }
     return umq_fw->tp_ops->umq_tp_async_event_get(trans_info, event);
@@ -981,19 +1141,27 @@ int umq_get_async_event(umq_trans_info_t *trans_info, umq_async_event_t *event)
 
 void umq_ack_async_event(umq_async_event_t *event)
 {
+#ifdef UMQ_STATIC_LIB
+    if (event->trans_info.trans_mode != UMQ_TRANS_MODE_UB &&
+        event->trans_info.trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return;
+    }
+#endif
+
     if (event == NULL || event->trans_info.trans_mode >= UMQ_TRANS_MODE_MAX || event->trans_info.trans_mode < 0) {
-        UMQ_VLOG_ERR("event invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "event invalid\n");
         return;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[event->trans_info.trans_mode];
 
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("framework instance disabled\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "framework instance disabled\n");
         return;
     }
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_aync_event_ack == NULL) {
-        UMQ_VLOG_ERR("ops invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "ops invalid\n");
         return;
     }
     return umq_fw->tp_ops->umq_tp_aync_event_ack(event);
@@ -1001,21 +1169,29 @@ void umq_ack_async_event(umq_async_event_t *event)
 
 int umq_dev_add(umq_trans_info_t *trans_info)
 {
+    int ret = UMQ_SUCCESS;
     if (!g_umq_inited) {
-        UMQ_VLOG_ERR("umq has not been inited\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq has not been inited\n");
         return -UMQ_ERR_EINVAL;
     }
 
+#ifdef UMQ_STATIC_LIB
+    if (trans_info->trans_mode != UMQ_TRANS_MODE_UB &&
+        trans_info->trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return -UMQ_ERR_EINVAL;
+    }
+#endif
+
     if (trans_info == NULL || trans_info->trans_mode >= UMQ_TRANS_MODE_MAX) {
-        UMQ_VLOG_ERR("trans info invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans info invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[trans_info->trans_mode];
-    int ret = UMQ_SUCCESS;
     pthread_mutex_lock(&g_umq_config_mutex_lock);
     if (g_umq_config->trans_info_num >= MAX_UMQ_TRANS_INFO_NUM) {
-        UMQ_VLOG_ERR("trans info num[%u] exceeds maximum[%u] limit\n",
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans info num[%u] exceeds maximum[%u] limit\n",
             g_umq_config->trans_info_num, MAX_UMQ_TRANS_INFO_NUM);
         ret = -UMQ_ERR_EINVAL;
         goto UNLOCK;
@@ -1027,7 +1203,7 @@ int umq_dev_add(umq_trans_info_t *trans_info)
         umq_fw->enable = true;
         ret = umq_framework_init(umq_fw, g_umq_config);
         if (ret != UMQ_SUCCESS) {
-            UMQ_VLOG_ERR("umq framework init failed\n");
+            UMQ_VLOG_ERR(VLOG_UMQ, "umq framework init failed, status: %d\n", ret);
             goto DECREASE_TRANS_INFO_NUM;
         }
         pthread_mutex_unlock(&g_umq_config_mutex_lock);
@@ -1035,7 +1211,7 @@ int umq_dev_add(umq_trans_info_t *trans_info)
     }
 
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_dev_add == NULL) {
-        UMQ_VLOG_ERR("trans mode [%u] tp ops invalid\n", trans_info->trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode [%u] tp ops invalid\n", trans_info->trans_mode);
         ret = -UMQ_ERR_EINVAL;
         goto DECREASE_TRANS_INFO_NUM;
     }
@@ -1043,7 +1219,7 @@ int umq_dev_add(umq_trans_info_t *trans_info)
     // add new dev
     ret = umq_fw->tp_ops->umq_tp_dev_add(trans_info, g_umq_config);
     if (ret != UMQ_SUCCESS) {
-        UMQ_VLOG_ERR("add dev failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "add dev failed, status: %d\n", ret);
         goto DECREASE_TRANS_INFO_NUM;
     }
     pthread_mutex_unlock(&g_umq_config_mutex_lock);
@@ -1061,23 +1237,30 @@ return ret;
 int umq_get_route_list(const umq_route_t *route, umq_trans_mode_t umq_trans_mode, umq_route_list_t *route_list)
 {
     if (route == NULL || route_list == NULL) {
-        UMQ_VLOG_ERR("invalid parameter\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "invalid parameter\n");
         return -UMQ_ERR_EINVAL;
     }
 
+#ifdef UMQ_STATIC_LIB
+    if (umq_trans_mode != UMQ_TRANS_MODE_UB && umq_trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return -UMQ_ERR_EINVAL;
+    }
+#endif
+
     if (umq_trans_mode >= UMQ_TRANS_MODE_MAX) {
-        UMQ_VLOG_ERR("trans info mode[%u] is invalid\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans info mode[%u] is invalid\n", umq_trans_mode);
         return -UMQ_ERR_EINVAL;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[umq_trans_mode];
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("trans mode %u ops not init\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not init\n", umq_trans_mode);
         return -UMQ_ERR_EINVAL;
     }
 
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_get_topo == NULL) {
-        UMQ_VLOG_ERR("trans mode %u ops not support\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not support\n", umq_trans_mode);
         return -UMQ_ERR_EINVAL;
     }
 
@@ -1086,25 +1269,7 @@ int umq_get_route_list(const umq_route_t *route, umq_trans_mode_t umq_trans_mode
 
 int umq_user_ctl(uint64_t umqh, umq_user_ctl_in_t *in, umq_user_ctl_out_t *out)
 {
-    if (in == NULL || in->opcode >= UMQ_OPCODE_MAX || out == NULL) {
-        UMQ_VLOG_ERR("in or out parameter invalid\n");
-        return -UMQ_ERR_EINVAL;
-    }
-    if (umqh == UMQ_INVALID_HANDLE) {
-        user_ctl_func func = g_umq_user_ctl_func[in->opcode];
-        if (func) {
-            return func(umqh, in, out);
-        }
-    }
-
-    umq_t *umq = (umq_t *)(uintptr_t)umqh;
-    if (umq == NULL || umq->umqh_tp == UMQ_INVALID_HANDLE || umq->tp_ops == NULL ||
-        umq->tp_ops->umq_tp_user_ctl == NULL) {
-        UMQ_VLOG_ERR("parameter invalid\n");
-        return -UMQ_ERR_EINVAL;
-    }
-
-    return umq->tp_ops->umq_tp_user_ctl(umq->umqh_tp, in, out);
+    return UMQ_SUCCESS;
 }
 
 int umq_mempool_state_get(uint64_t umqh, uint32_t mempool_id, umq_mempool_state_t *mempool_state)
@@ -1112,7 +1277,7 @@ int umq_mempool_state_get(uint64_t umqh, uint32_t mempool_id, umq_mempool_state_
     umq_t *umq = (umq_t *)(uintptr_t)umqh;
     if (umq == NULL || umq->umqh_tp == UMQ_INVALID_HANDLE || umq->tp_ops == NULL ||
         umq->tp_ops->umq_tp_mempool_state_get == NULL || mempool_state == NULL) {
-        UMQ_VLOG_ERR("parameter invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "parameter invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -1124,7 +1289,7 @@ int umq_mempool_state_refresh(uint64_t umqh, uint32_t mempool_id)
     umq_t *umq = (umq_t *)(uintptr_t)umqh;
     if (umq == NULL || umq->umqh_tp == UMQ_INVALID_HANDLE || umq->tp_ops == NULL ||
         umq->tp_ops->umq_tp_mempool_state_refresh == NULL) {
-        UMQ_VLOG_ERR("parameter invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "parameter invalid\n");
         return -UMQ_ERR_EINVAL;
     }
 
@@ -1134,23 +1299,30 @@ int umq_mempool_state_refresh(uint64_t umqh, uint32_t mempool_id)
 int umq_dev_info_get(char *dev_name, umq_trans_mode_t umq_trans_mode, umq_dev_info_t *umq_dev_info)
 {
     if (dev_name == NULL || strnlen(dev_name, UMQ_DEV_NAME_SIZE) >= UMQ_DEV_NAME_SIZE || umq_dev_info == NULL) {
-        UMQ_VLOG_ERR("invalid parameter\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "invalid parameter\n");
         return -UMQ_ERR_EINVAL;
     }
 
+#ifdef UMQ_STATIC_LIB
+    if (umq_trans_mode != UMQ_TRANS_MODE_UB && umq_trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return -UMQ_ERR_EINVAL;
+    }
+#endif
+
     if (umq_trans_mode >= UMQ_TRANS_MODE_MAX) {
-        UMQ_VLOG_ERR("trans info mode[%u] is invalid\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans info mode[%u] is invalid\n", umq_trans_mode);
         return -UMQ_ERR_EINVAL;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[umq_trans_mode];
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("trans mode %u ops not init\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not init\n", umq_trans_mode);
         return -UMQ_ERR_EINVAL;
     }
 
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_dev_info_get == NULL) {
-        UMQ_VLOG_ERR("trans mode %u ops not support\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not support\n", umq_trans_mode);
         return -UMQ_ERR_EINVAL;
     }
 
@@ -1160,27 +1332,35 @@ int umq_dev_info_get(char *dev_name, umq_trans_mode_t umq_trans_mode, umq_dev_in
 umq_dev_info_t *umq_dev_info_list_get(umq_trans_mode_t umq_trans_mode, int *dev_num)
 {
     if (dev_num == NULL) {
-        UMQ_VLOG_ERR("invalid parameter\n");
         errno = UMQ_ERR_EINVAL;
+        UMQ_VLOG_ERR(VLOG_UMQ, "invalid parameter, errno: %d\n", errno);
         return NULL;
     }
 
-    if (umq_trans_mode >= UMQ_TRANS_MODE_MAX) {
-        UMQ_VLOG_ERR("trans info mode[%u] is invalid\n", umq_trans_mode);
+#ifdef UMQ_STATIC_LIB
+    if (umq_trans_mode != UMQ_TRANS_MODE_UB && umq_trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
         errno = UMQ_ERR_EINVAL;
+        return NULL;
+    }
+#endif
+
+    if (umq_trans_mode >= UMQ_TRANS_MODE_MAX) {
+        errno = UMQ_ERR_EINVAL;
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans info mode[%u] is invalid, errno: %d\n", umq_trans_mode, errno);
         return NULL;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[umq_trans_mode];
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("trans mode %u ops not init\n", umq_trans_mode);
         errno = UMQ_ERR_EINVAL;
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not init, errno: %d\n", umq_trans_mode, errno);
         return NULL;
     }
 
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_dev_info_list_get == NULL) {
-        UMQ_VLOG_ERR("trans mode %u ops not support\n", umq_trans_mode);
         errno = UMQ_ERR_EINVAL;
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not support, errno: %d\n", umq_trans_mode, errno);
         return NULL;
     }
 
@@ -1189,18 +1369,25 @@ umq_dev_info_t *umq_dev_info_list_get(umq_trans_mode_t umq_trans_mode, int *dev_
 
 void umq_dev_info_list_free(umq_trans_mode_t umq_trans_mode, umq_dev_info_t *umq_dev_info)
 {
+#ifdef UMQ_STATIC_LIB
+    if (umq_trans_mode != UMQ_TRANS_MODE_UB && umq_trans_mode != UMQ_TRANS_MODE_UB_PLUS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq static library only support UB transport mode\n");
+        return;
+    }
+#endif
+
     if (umq_trans_mode >= UMQ_TRANS_MODE_MAX || umq_dev_info == NULL) {
         return;
     }
 
     umq_framework_t *umq_fw = &g_umq_fws[umq_trans_mode];
     if (!umq_fw->enable) {
-        UMQ_VLOG_ERR("trans mode %u ops not init\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not init\n", umq_trans_mode);
         return;
     }
 
     if (umq_fw->tp_ops == NULL || umq_fw->tp_ops->umq_tp_dev_info_list_free == NULL) {
-        UMQ_VLOG_ERR("trans mode %u ops not support\n", umq_trans_mode);
+        UMQ_VLOG_ERR(VLOG_UMQ, "trans mode %u ops not support\n", umq_trans_mode);
         return;
     }
 
@@ -1212,7 +1399,7 @@ int umq_cfg_get(uint64_t umqh, umq_cfg_get_t *cfg)
     umq_t *umq = (umq_t *)(uintptr_t)umqh;
     if (umq == NULL || umq->umqh_tp == UMQ_INVALID_HANDLE || umq->tp_ops == NULL
         || umq->tp_ops->umq_tp_cfg_get == NULL) {
-        UMQ_VLOG_ERR("parameter invalid\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "parameter invalid\n");
         return -UMQ_ERR_EINVAL;
     }
     return umq->tp_ops->umq_tp_cfg_get(umq->umqh_tp, cfg);

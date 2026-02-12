@@ -18,12 +18,13 @@ static uint8_t *umq_tp_ub_init(umq_init_cfg_t *cfg)
 {
     uint8_t *ub_ctx = umq_ub_ctx_init_impl(cfg);
     if (ub_ctx == NULL) {
-        UMQ_VLOG_ERR("umq ub ctx init failed\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "umq ub ctx init failed\n");
         return NULL;
     }
 
-    if (umq_ub_register_memory_impl(umq_io_buf_addr(), umq_io_buf_size()) != UMQ_SUCCESS) {
-        UMQ_VLOG_ERR("register memory failed\n");
+    int ret = umq_ub_register_memory_impl(umq_io_buf_addr(), umq_io_buf_size());
+    if (ret != UMQ_SUCCESS) {
+        UMQ_VLOG_ERR(VLOG_UMQ, "register memory failed, status: %d\n", ret);
         goto UNINIT;
     }
 
@@ -37,7 +38,7 @@ UNINIT:
 static void umq_tp_ub_uninit(uint8_t *ctx)
 {
     if (ctx == NULL) {
-        UMQ_VLOG_ERR("ub_ctx is null\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "ub_ctx is null\n");
         return;
     }
     umq_ub_unregister_memory_impl();
@@ -155,11 +156,6 @@ static int umq_tp_ub_get_route_list_impl(const umq_route_t *route, umq_route_lis
     return umq_ub_get_route_list_impl(route, route_list);
 }
 
-static int umq_tp_ub_user_ctl_impl(uint64_t umqh_tp, umq_user_ctl_in_t *in, umq_user_ctl_out_t *out)
-{
-    return umq_ub_user_ctl_impl(umqh_tp, in, out);
-}
-
 static int umq_tp_ub_buf_headroom_reset(umq_buf_t *qbuf, uint16_t headroom_size)
 {
     return umq_qbuf_headroom_reset(qbuf, headroom_size);
@@ -211,7 +207,6 @@ static umq_ops_t g_umq_ub_ops = {
     .umq_tp_buf_headroom_reset = umq_tp_ub_buf_headroom_reset,
     .umq_tp_dev_add = umq_tp_ub_dev_add_impl,
     .umq_tp_get_topo = umq_tp_ub_get_route_list_impl,
-    .umq_tp_user_ctl = umq_tp_ub_user_ctl_impl,
     .umq_tp_mempool_state_get = umq_tp_ub_mempool_state_get,
     .umq_tp_mempool_state_refresh = umq_tp_ub_mempool_state_refresh,
     .umq_tp_dev_info_get = umq_tp_ub_dev_info_get,
