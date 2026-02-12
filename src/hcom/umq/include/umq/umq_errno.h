@@ -28,6 +28,8 @@ extern "C" {
 #define UMQ_ERR_EEXIST                             (EEXIST)
 #define UMQ_ERR_EINVAL                             (EINVAL)
 #define UMQ_ERR_ENODEV                             (ENODEV)
+#define UMQ_ERR_ETIMEOUT                           (ETIMEDOUT)
+#define UMQ_ERR_EINPROGRESS                        (EINPROGRESS)
 #define UMQ_ERR_ETSEG_NON_IMPORTED                 (0x0201)
 
 typedef enum umq_buf_status {
@@ -52,6 +54,8 @@ typedef enum umq_buf_status {
     UMQ_BUF_FLOW_CONTROL_UPDATE = 128,  /* Umq flow control window is updated, this is not error case */
     UMQ_MEMPOOL_UPDATE_SUCCESS,
     UMQ_MEMPOOL_UPDATE_FAILED,
+    UMQ_IMPORT_TSEG_SUCCESS,
+    UMQ_IMPORT_TSEG_FAILED,
 
     // fake buf
     UMQ_FAKE_BUF_FC_UPDATE = 192,       /* Umq fake flow control window is updated, this is not error case */
