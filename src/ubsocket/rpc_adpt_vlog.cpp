@@ -13,6 +13,9 @@
 #include "umq_api.h"
 #include "rpc_adpt_vlog.h"
 
+#include <pthread.h>
+#include <cstdio>
+
 static ubsocket::util_vlog_ctx_t g_rpc_adpt_vlog_ctx = {
     ubsocket::UTIL_VLOG_LEVEL_INFO,
     "UBSOCKET",
@@ -30,8 +33,16 @@ static void DefaultPrintfOutput(int level, char *logMsg)
     struct tm time;
     (void)gettimeofday(&tval, nullptr);
     (void)localtime_r(&tval.tv_sec, &time);
-    (void)fprintf(stdout, "%02d%02d %02d:%02d:%02d.%06ld|%s|%s", time.tm_mon + 1, time.tm_mday, time.tm_hour,
-        time.tm_min, time.tm_sec, (long)tval.tv_usec, g_log_level_to_str[level], logMsg);
+    (void)fprintf(stdout, "%02d%02d %02d:%02d:%02d.%06ld [%lu]|%s|%s",
+        time.tm_mon + 1,
+        time.tm_mday,
+        time.tm_hour,
+        time.tm_min,
+        time.tm_sec,
+        (long)tval.tv_usec,
+        (unsigned long)pthread_self(),  // 线程ID
+        g_log_level_to_str[level],
+        logMsg);
 }
 
 int RpcAdptSetLogCtx(ubsocket::util_vlog_level_t level)

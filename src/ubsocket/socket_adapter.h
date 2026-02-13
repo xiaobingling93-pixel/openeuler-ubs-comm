@@ -93,12 +93,12 @@ void RecordApi(void *handle, const char *symbol_name, ApiType &symbol)
     char *dlerror_str = dlerror();
     if(!symbol || dlerror_str){
         if(strcmp(symbol_name, "fcntl64")!=0){
-            RPC_ADPT_VLOG_ERR("Failed when looking for '%s', error message: %s\n",
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed when looking for '%s', error message: %s\n",
                 symbol_name, (!dlerror_str ? "": dlerror_str));
         } else {
-            // fcntl64 is not used in most cases, thus, print debug log 
-            RPC_ADPT_VLOG_DEBUG("Failed when looking for '%s', error message: %s\n",
-                 symbol_name, (!dlerror_str ? "": dlerror_str));
+            // fcntl64 is not used in most cases, thus, print debug log
+            RPC_ADPT_VLOG_DEBUG("Failed when looking for '%s', error message: %s\n", symbol_name,
+                                (!dlerror_str ? "" : dlerror_str));
         }
     } else {
          RPC_ADPT_VLOG_DEBUG("Found for '%s()'\n", symbol_name);
@@ -365,7 +365,7 @@ class OsAPiMgr {
 
         int ret = dlclose(handle);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Unable to close the dynamic link library: %s\n",
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Unable to close the dynamic link library: %s\n",
                               dlerror());
         }
     }

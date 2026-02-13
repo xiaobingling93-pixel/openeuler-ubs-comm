@@ -23,6 +23,7 @@
 #include <regex>
 #include "socket_adapter.h"
 #include "brpc_iobuf_adapter.h"
+#include "../util_vlog.h"
 
 #define LINK_STR_MAX   (256)
 #define EXE_STR_MAX    (1024)
@@ -46,11 +47,13 @@ public:
         // Try using symbols that are more likely to be correct
         RecordApi(RTLD_DEFAULT, BRPC_ALLOC_SYMBOL_DEFAULT, m_alloc_addr);
         RecordApi(RTLD_DEFAULT, BRPC_DEALLOC_SYMBOL_DEFAULT, m_dealloc_addr);
-        if(m_alloc_addr != nullptr && m_dealloc_addr != nullptr){
+        if (m_alloc_addr != nullptr && m_dealloc_addr != nullptr) {
             RPC_ADPT_VLOG_INFO("Dynamic Symbol Scanner Found: %s(default), "
-                "(butil::iobuf::blockmem_allocate)\n", BRPC_ALLOC_SYMBOL_DEFAULT);
+                               "(butil::iobuf::blockmem_allocate)\n",
+                               BRPC_ALLOC_SYMBOL_DEFAULT);
             RPC_ADPT_VLOG_INFO("Dynamic Symbol Scanner Found: %s(default), "
-                "(butil::iobuf::blockmem_deallocate)\n", BRPC_DEALLOC_SYMBOL_DEFAULT);    
+                               "(butil::iobuf::blockmem_deallocate)\n",
+                               BRPC_DEALLOC_SYMBOL_DEFAULT);
             return true;    
         }
 
@@ -70,11 +73,11 @@ public:
             if (ParseBrpcBlockMemAllocate(name)) {
                 m_alloc_addr = (IOBuf::blockmem_allocate_t *)(m_ehdr.e_type == ET_EXEC ?
                     (char *)m_symbols[i].st_value : (char *)m_base_addr + m_symbols[i].st_value);
-                RPC_ADPT_VLOG_INFO("Dynamic Symbol Scanner Found: %s, (butil::iobuf::blockmem_allocate)\n", name);    
+                RPC_ADPT_VLOG_INFO("Dynamic Symbol Scanner Found: %s, (butil::iobuf::blockmem_allocate)\n", name);
             } else if (ParseBrpcBlockMemDeallocate(name)) {
                 m_dealloc_addr = (IOBuf::blockmem_deallocate_t *)(m_ehdr.e_type == ET_EXEC ?
                     (char *)m_symbols[i].st_value : (char *)m_base_addr + m_symbols[i].st_value);
-                RPC_ADPT_VLOG_INFO("Dynamic Symbol Scanner Found: %s, (butil::iobuf::blockmem_deallocate)\n", name);   
+                RPC_ADPT_VLOG_INFO("Dynamic Symbol Scanner Found: %s, (butil::iobuf::blockmem_deallocate)\n", name);
             }
         }
 
@@ -217,7 +220,7 @@ protected:
         } else if (m_ehdr.e_type == ET_DYN) {
             RPC_ADPT_VLOG_INFO("Parsing position-independent executable or shared object file\n");
         } else {
-            RPC_ADPT_VLOG_ERR("Invalid ELF file\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Invalid ELF file\n");
             return false;
         }
 
@@ -243,7 +246,7 @@ protected:
         // looking for section header string table section
         shstrtab = &m_shdrs[m_ehdr.e_shstrndx];
         m_shstr = (char *)malloc(shstrtab->sh_size);
-        if (m_shstr == nullptr) {           
+        if (m_shstr == nullptr) {
             RPC_ADPT_VLOG_WARN("Failed to malloc for section string table");
             goto FREE_SHDRS;
         }

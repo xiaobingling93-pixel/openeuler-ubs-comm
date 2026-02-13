@@ -192,7 +192,7 @@ public:
             try {
                 m_recorder_vec.emplace_back(GetStatsStr((enum trace_stats_type)i));
             } catch (std::exception& e) {
-                RPC_ADPT_VLOG_ERR("Failed to construct statistics manager, %s\n", e.what());
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to construct statistics manager, %s\n", e.what());
                 return false;
             }
         }
@@ -425,13 +425,13 @@ class Listener {
     {
         m_epoll_fd = OsAPiMgr::GetOriginApi()->epoll_create(MAX_EPOLL_FD_NUM);
         if(m_epoll_fd < 0){
-            RPC_ADPT_VLOG_ERR("Failed to create epoll file descriptor\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create epoll file descriptor\n");
             return -1;
         }
 
         m_wakeup_fd = eventfd(0, EFD_NONBLOCK);
         if(m_wakeup_fd == -1){
-            RPC_ADPT_VLOG_ERR("Failed to create wakeup event file descriptor\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create wakeup event file descriptor\n");
             goto CLEAN_EPOLL;
         }
 
@@ -439,14 +439,14 @@ class Listener {
         ev.events = EPOLLIN;
         ev.data.fd = m_wakeup_fd;
         if(OsAPiMgr::GetOriginApi()->epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, m_wakeup_fd, &ev) == -1){
-            RPC_ADPT_VLOG_ERR("Failed to add epoll event for wakeup event file descriptor\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add epoll event for wakeup event file descriptor\n");
             goto CLEAN_ALL_RESOURCE;
         }
 
         ev.data.fd = m_uds_fd;
-        if(OsAPiMgr::GetOriginApi()->epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, m_uds_fd, &ev) != 0){
-           RPC_ADPT_VLOG_ERR("Failed to add epoll control event, %s\n", strerror(errno));
-           goto CLEAN_ALL_RESOURCE;
+        if (OsAPiMgr::GetOriginApi()->epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, m_uds_fd, &ev) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add epoll control event, %s\n", strerror(errno));
+            goto CLEAN_ALL_RESOURCE;
         }
 
         m_internal_epoll_enable = true;
@@ -595,20 +595,20 @@ class Listener {
 
         int fd = OsAPiMgr::GetOriginApi()->accept(m_uds_fd, NULL, NULL);
         if(fd<0){
-            RPC_ADPT_VLOG_ERR("Failed to accept connection, %s\n", strerror(errno));
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to accept connection, %s\n", strerror(errno));
             return;
         }
         fd_guard tmpFd(fd);
         struct timeval tv = {0};
         tv.tv_sec = UDS_SEND_RECV_TIMEOUT_S;
         if(OsAPiMgr::GetOriginApi()->setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) != 0){
-            RPC_ADPT_VLOG_ERR("Failed to set socket send timeout option\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to set socket send timeout option\n");
             (void)OsAPiMgr::GetOriginApi()->close(fd);
             return;
         }
 
         if(OsAPiMgr::GetOriginApi()->setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) != 0){
-            RPC_ADPT_VLOG_ERR("Failed to set socket recv timeout option\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to set socket recv timeout option\n");
             (void)OsAPiMgr::GetOriginApi()->close(fd);
             return;
         }
@@ -633,7 +633,7 @@ class Listener {
         uint64_t value = 1;
         ssize_t n = OsAPiMgr::GetOriginApi()->write(m_wakeup_fd, &value, sizeof(value));
         if(n!=sizeof(value)){
-            RPC_ADPT_VLOG_ERR("Failed to wakeup listen thread\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to wakeup listen thread\n");
         }
     }
 
@@ -642,7 +642,7 @@ class Listener {
         uint64_t value;
         ssize_t n = OsAPiMgr::GetOriginApi()->read(m_wakeup_fd, &value, sizeof(value));
         if(n!=sizeof(value)){
-            RPC_ADPT_VLOG_ERR("Failed to acknowledge wakeup listen thread\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to acknowledge wakeup listen thread\n");
         }
     }
 
@@ -747,8 +747,8 @@ class Listener {
 
         try {
             m_event_loop = new std::thread(GlobalStatsMgrEventLoop);
-        } catch (const std::exception& e){
-            RPC_ADPT_VLOG_ERR("%s\n",e.what());
+        } catch (const std::exception& e) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
             throw std::runtime_error("Failed to launch internal thread for statistics");
         }
     }

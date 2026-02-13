@@ -158,7 +158,7 @@ public:
         LoadEnvVars();
 
         if(ParseEnvVars() !=0){
-            RPC_ADPT_VLOG_ERR("Failed to parse enviornment variables\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to parse enviornment variables\n");
             return -1;
         }
 
@@ -440,7 +440,8 @@ protected:
             "UB_SHM-based Acceleration"
         };
         m_socket_fd_trans_mode = trans_mode;
-        RPC_ADPT_VLOG_INFO("Socket fd transport mode: %s\n", socket_fd_trans_mode_str[m_socket_fd_trans_mode]);
+        RPC_ADPT_VLOG_INFO(
+            "Socket fd transport mode: %s\n", socket_fd_trans_mode_str[m_socket_fd_trans_mode]);
     }
 
     char m_log_level_str[LOG_LEVEL_STR_LEN_MAX] = "";

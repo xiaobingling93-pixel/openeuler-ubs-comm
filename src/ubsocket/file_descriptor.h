@@ -201,7 +201,7 @@ class SocketFd : public Fd<SocketFd> {
             }
 
             if(sent<=0 || errno != 0){
-                RPC_ADPT_VLOG_ERR("Failed to send socket message: %s, sent = %u.\n",
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send socket message: %s, sent = %u.\n",
                     strerror(errno), sent);
                 return sent;
             }else {
@@ -241,11 +241,12 @@ class SocketFd : public Fd<SocketFd> {
             }
 
             if (received <= 0 || errno != 0){
-               RPC_ADPT_VLOG_ERR("Failed to receive socket message: %s, received: %u, fd: %d.\n",
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to receive socket message: %s, received: %u, fd: %d.\n",
                    strerror(errno), received, fd);
                 return received;
             } else {
-                RPC_ADPT_VLOG_DEBUG("Receive socket message successful, fd: %d, received: %u, total: %d\n",
+                RPC_ADPT_VLOG_DEBUG(
+                    "Receive socket message successful, fd: %d, received: %u, total: %d\n",
                     fd, received, size);
             }
             total -= received;
@@ -302,12 +303,13 @@ class EpollEvent {
         tmp_event.data.ptr = (void *)(uintptr_t)this;
 
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_fd, &tmp_event);
-        if(ret != 0){
-            RPC_ADPT_VLOG_ERR("Origin epoll control add failed, epfd: %d, fd: %d\n",epoll_fd, m_fd);
+        if (ret != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add failed, epfd: %d, fd: %d\n", epoll_fd,
+                              m_fd);
             return ret;
         }
 
-        RPC_ADPT_VLOG_DEBUG("Origin epoll control add successful, epfd: %d, fd: %d\n",epoll_fd, m_fd);
+        RPC_ADPT_VLOG_DEBUG("Origin epoll control add successful, epfd: %d, fd: %d\n", epoll_fd, m_fd);
         m_add_epoll_event = true;
 
         if (use_polling) {
@@ -324,13 +326,15 @@ class EpollEvent {
         tmp_event.data.ptr = (void *)(uintptr_t)this;
 
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_MOD, m_fd, &tmp_event);
-        if(ret != 0){
-            RPC_ADPT_VLOG_ERR("Origin epoll control modify failed, epfd: %d, fd: %d\n",epoll_fd, m_fd);
+        if (ret != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control modify failed, epfd: %d, fd: %d\n", epoll_fd,
+                              m_fd);
             return ret;
         }
 
         RPC_ADPT_VLOG_DEBUG("Origin epoll control modify successful, epfd: %d, fd: %d, old events: %u,"
-            " new events: %u\n",epoll_fd, m_fd, m_event.events, event->events);
+                            " new events: %u\n",
+                            epoll_fd, m_fd, m_event.events, event->events);
         m_event = *event;
 
         if (use_polling) {
@@ -343,12 +347,13 @@ class EpollEvent {
     virtual int DelEpollEvent(int epoll_fd, bool use_polling = false)
     {
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_DEL, m_fd, nullptr);
-        if(ret != 0){
-            RPC_ADPT_VLOG_ERR("Origin epoll control delete failed, epfd: %d, fd: %d\n",epoll_fd, m_fd);
+        if (ret != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control delete failed, epfd: %d, fd: %d\n", epoll_fd,
+                              m_fd);
             return ret;
         }
 
-        RPC_ADPT_VLOG_DEBUG("Origin epoll control delete successful, epfd: %d, fd: %d\n",epoll_fd, m_fd);
+        RPC_ADPT_VLOG_DEBUG("Origin epoll control delete successful, epfd: %d, fd: %d\n", epoll_fd, m_fd);
         m_add_epoll_event = false;
 
         if (use_polling) {
@@ -413,13 +418,13 @@ class EpollFd : public Fd<EpollFd> {
     virtual ALWAYS_INLINE int EpollCtlAdd(int fd, struct epoll_event *event, bool use_polling = false)
     {
         if (event == nullptr) {
-            RPC_ADPT_VLOG_ERR("Invalid argument, epoll event is NULL\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid argument, epoll event is NULL\n");
             errno = EINVAL;
             return -1;
         }
 
         if (m_epoll_event_map.count(fd) > 0) {
-            RPC_ADPT_VLOG_ERR("Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
             errno = EEXIST;
             return -1;
         }
@@ -428,7 +433,7 @@ class EpollFd : public Fd<EpollFd> {
         try {
             epoll_event = new EpollEvent(fd, event);
         } catch (std::exception& e){
-            RPC_ADPT_VLOG_ERR("%s\n", e.what());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
             return -1;
         }
 
@@ -445,13 +450,14 @@ class EpollFd : public Fd<EpollFd> {
     virtual ALWAYS_INLINE int EpollCtlMod(int fd, struct epoll_event *event, bool use_polling = false)
     {
         if(event == nullptr){
-            RPC_ADPT_VLOG_ERR("Invalid argument, epoll event is NULL\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid argument, epoll event is NULL\n");
             errno = EINVAL;
             return -1;
         }
 
-        if(m_epoll_event_map.count(fd)==0){
-            RPC_ADPT_VLOG_ERR("Origin epoll control modify not exist, epfd: %d, fd: %d\n", m_fd, fd);
+        if (m_epoll_event_map.count(fd) == 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control modify not exist, epfd: %d, fd: %d\n", m_fd,
+                              fd);
             return -1;
         }
 
@@ -466,7 +472,8 @@ class EpollFd : public Fd<EpollFd> {
     virtual ALWAYS_INLINE int EpollCtlDel(int fd, struct epoll_event *event, bool use_polling = false)
     {
         if (m_epoll_event_map.count(fd) == 0) {
-            RPC_ADPT_VLOG_ERR("Origin epoll control delete not exist, epfd: %d, fd: %d\n", m_fd, fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control delete not exist, epfd: %d, fd: %d\n", m_fd,
+                              fd);
             return -1;
         }
 
@@ -495,7 +502,7 @@ class EpollFd : public Fd<EpollFd> {
                 ret = EpollCtlDel(fd, event, use_polling);
                 break; 
             default:
-                RPC_ADPT_VLOG_ERR("Invalid op code(%d), epfd: %d, fd: %d\n", op, m_fd, fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid op code(%d), epfd: %d, fd: %d\n", op, m_fd, fd);
                 errno = EINVAL; 
         }
 

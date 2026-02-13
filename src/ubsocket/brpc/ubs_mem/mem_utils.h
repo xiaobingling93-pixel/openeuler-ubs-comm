@@ -56,7 +56,7 @@ void UbsMemRecordApi(void *handle, const char *symbol_name, ApiType &symbol)
     symbol = reinterpret_cast<ApiType>(dlsym(handle, symbol_name));
     char *err = dlerror();
     if (!symbol || err) {
-        RPC_ADPT_VLOG_ERR("Failed to find symbol '%s' in libubsm_sdk.so: %s\n",
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to find symbol '%s' in libubsm_sdk.so: %s\n",
             symbol_name, (err ? err : "unknown error"));
     } else {
         RPC_ADPT_VLOG_DEBUG("Found symbol '%s()' in libubsm_sdk.so\n", symbol_name);
@@ -95,7 +95,7 @@ private:
         const char *ubsm_sdk_path = "/usr/local/ubs_mem/lib/libubsm_sdk.so";
         ubs_mem_handle_ = dlopen(ubsm_sdk_path, RTLD_LAZY);
         if (!ubs_mem_handle_) {
-            RPC_ADPT_VLOG_ERR("dlopen %s failed: %s\n", ubsm_sdk_path, dlerror());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "dlopen %s failed: %s\n", ubsm_sdk_path, dlerror());
         }
         UBSMEM_API_INITIALIZER(ubsmem_init_attributes);
         UBSMEM_API_INITIALIZER(ubsmem_initialize);

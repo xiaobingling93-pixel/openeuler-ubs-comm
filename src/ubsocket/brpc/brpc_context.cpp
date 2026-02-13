@@ -52,7 +52,7 @@ std::atomic<int> Context::m_shmNameSeq;
                 break;      
         }
     } catch (std::exception& e) {
-        RPC_ADPT_VLOG_ERR("%s\n", e.what());
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "%s\n", e.what());
         return nullptr;
     }
 
@@ -82,7 +82,7 @@ std::atomic<int> Context::m_shmNameSeq;
                 break;      
         }
     } catch (std::exception& e) {
-        RPC_ADPT_VLOG_ERR("%s\n", e.what());
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "%s\n", e.what());
         return nullptr;
     }
 
@@ -224,13 +224,13 @@ void Context::AsyncEventProcess(umq_init_cfg_t cfg)
 {
     int afd = umq_async_event_fd_get(cfg.trans_info);
     if (afd == UMQ_INVALID_FD) {
-        RPC_ADPT_VLOG_ERR("Failed to get async fd\n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get async fd\n");
         return;
     }
 
     int epfd = OsAPiMgr::GetOriginApi()->epoll_create(1);
     if (epfd < 0) {
-        RPC_ADPT_VLOG_ERR("Failed to create epoll for async events\n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to create epoll for async events\n");
         return;
     }
 
@@ -239,7 +239,7 @@ void Context::AsyncEventProcess(umq_init_cfg_t cfg)
     struct epoll_event interest = {EPOLLIN};
     int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epfd, EPOLL_CTL_ADD, afd, &interest);
     if (ret < 0) {
-        RPC_ADPT_VLOG_ERR("Failed to add epoll event\n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to add epoll event\n");
         return;
     }
 
@@ -251,7 +251,7 @@ void Context::AsyncEventProcess(umq_init_cfg_t cfg)
                 continue;
             }
 
-            RPC_ADPT_VLOG_ERR("epoll_wait on async event thread error, errno=%d\n", errno);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "epoll_wait on async event thread error, errno=%d\n", errno);
             break;
         }
 
@@ -265,7 +265,7 @@ void Context::AsyncEventProcess(umq_init_cfg_t cfg)
             AsyncEventHandle(&av);
             umq_ack_async_event(&av);
         } else {
-            RPC_ADPT_VLOG_ERR("Spurious wakeup from async fd\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Spurious wakeup from async fd\n");
         }
     }
 }
@@ -275,7 +275,7 @@ static void Disconnect(uint64_t umqh)
     umq_cfg_get_t cfg;
     int ret = umq_cfg_get(umqh, &cfg);
     if (ret != UMQ_SUCCESS) {
-        RPC_ADPT_VLOG_ERR("Unable to disconnect, as umq config get error\n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Unable to disconnect, as umq config get error\n");
         return;
     }
 
@@ -310,12 +310,12 @@ void Context::AsyncEventHandle(const umq_async_event_t *av)
         case UMQ_EVENT_QH_RQ_CQ_ERR:
         case UMQ_EVENT_QH_SQ_CQ_ERR:
             Disconnect(av->element.umqh);
-            RPC_ADPT_VLOG_ERR("jfc error: disconnect umqh=%llu\n", av->element.umqh);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "jfc error: disconnect umqh=%llu\n", av->element.umqh);
             break;
 
         case UMQ_EVENT_QH_RQ_ERR:
             Disconnect(av->element.umqh);
-            RPC_ADPT_VLOG_ERR("jfr error: disconnect umqh=%llu\n", av->element.umqh);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "jfr error: disconnect umqh=%llu\n", av->element.umqh);
             break;
 
         case UMQ_EVENT_QH_RQ_LIMIT:
@@ -327,7 +327,7 @@ void Context::AsyncEventHandle(const umq_async_event_t *av)
 
         case UMQ_EVENT_QH_ERR:
             Disconnect(av->element.umqh);
-            RPC_ADPT_VLOG_ERR("jetty error: disconnect umqh=%llu\n", av->element.umqh);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "jetty error: disconnect umqh=%llu\n", av->element.umqh);
             break;
 
         case UMQ_EVENT_QH_LIMIT:
@@ -340,7 +340,7 @@ void Context::AsyncEventHandle(const umq_async_event_t *av)
 
         case UMQ_EVENT_PORT_DOWN:
             DisconnectAll();
-            RPC_ADPT_VLOG_ERR("port down: port=%d\n", av->element.port_id);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "port down: port=%d\n", av->element.port_id);
             break;
 
         case UMQ_EVENT_DEV_FATAL:
@@ -378,7 +378,7 @@ void Context::AsyncEventHandle(const umq_async_event_t *av)
                     break;
 
                 default:
-                    RPC_ADPT_VLOG_ERR("unreachable!\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "unreachable!\n");
                     break;
             }
             break;

@@ -65,10 +65,12 @@ bool util_vlog_limit(util_vlog_ctx_t *ctx, uint32_t *print_count, uint64_t *last
 }
 
 void util_vlog_output(
-    util_vlog_ctx_t *ctx, util_vlog_level_t level, const char *function, int line, const char *format, ...)
+    error_type_t error_type, util_vlog_ctx_t *ctx, util_vlog_level_t level,
+    const char *function, int line, const char *format, ...)
 {
     char log_msg[UTIL_VLOG_SIZE];
-    int len = snprintf(log_msg, UTIL_VLOG_SIZE, "%s|%s[%d]|", ctx->vlog_name, function, line);
+    int len = snprintf(log_msg, UTIL_VLOG_SIZE, "%s|%s|%s[%d]|", ctx->vlog_name, error_type_to_str(error_type),
+                       function, line);
     if (len < 0) {
         return;
     }
@@ -102,5 +104,18 @@ const char *util_vlog_level_converter_to_str(util_vlog_level_t level)
 {
     return g_util_vlog_level_def[level].output_name;
 }
+static const char *g_error_type_to_str[ubsocket::ERROR_TYPE_MAX] = {
+    "UMQ_AE",
+    "UMQ_API",
+    "UMQ_CQE",
+    "UBSocket",
+};
 
+const char *error_type_to_str(ubsocket::error_type_t error_type)
+{
+    if (error_type >= ubsocket::ERROR_TYPE_MAX) {
+        return "UNKNOWN";
+    }
+    return g_error_type_to_str[error_type];
+}
 }  // namespace ubsocket

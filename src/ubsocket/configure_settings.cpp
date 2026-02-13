@@ -88,29 +88,31 @@ int ConfigSettings::ParseEnvVars()
     m_log_level = ubsocket::util_vlog_level_converter_from_str(m_log_level_str, ubsocket::UTIL_VLOG_LEVEL_INFO);
     if(m_log_use_printf){
         if (RpcAdptSetLogCtx(m_log_level) != UMQ_SUCCESS) {
-            RPC_ADPT_VLOG_WARN("Log output via printf is disabled; messages will be sent to syslog.\n");
+            RPC_ADPT_VLOG_WARN(
+                "Log output via printf is disabled; messages will be sent to syslog.\n");
         }
     }
-    RpcAdptVlogCtxSet(m_log_level,nullptr);
+    RpcAdptVlogCtxSet(m_log_level, nullptr);
     RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_LOG_LEVEL,
                        ubsocket::util_vlog_level_converter_to_str(m_log_level),
                        strlen(m_log_level_str) > 0 ? m_log_level_str : "(null)");
 
     m_trans_mode = TransMode::TransModeConverter(m_trans_mode_str);
-     RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_TRANS_MODE, TransMode::TransModeConverter(m_trans_mode),
-      strlen(m_trans_mode_str) > 0 ? m_trans_mode_str : "(null)");
+    RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_TRANS_MODE, TransMode::TransModeConverter(m_trans_mode),
+                       strlen(m_trans_mode_str) > 0 ? m_trans_mode_str : "(null)");
 
     if(strlen(m_dev_ip_str) > 0){
         m_addr.sin_family = AF_INET;
         m_addr6.sin6_family = AF_INET6;
-        if(inet_pton(AF_INET, m_dev_ip_str, &(m_addr.sin_addr)) == 1){
+        if (inet_pton(AF_INET, m_dev_ip_str, &(m_addr.sin_addr)) == 1) {
             m_is_ipv6 = false;
-             RPC_ADPT_VLOG_INFO("%s: %s (ipv4)\n", ENV_VAR_DEV_IP, m_dev_ip_str);
-        }else if(inet_pton(AF_INET6, m_dev_ip_str, &(m_addr6.sin6_addr)) == 1){
+            RPC_ADPT_VLOG_INFO("%s: %s (ipv4)\n", ENV_VAR_DEV_IP, m_dev_ip_str);
+        } else if (inet_pton(AF_INET6, m_dev_ip_str, &(m_addr6.sin6_addr)) == 1) {
             m_is_ipv6 = true;
-             RPC_ADPT_VLOG_INFO("%s: %s (ipv6)\n", ENV_VAR_DEV_IP, m_dev_ip_str);
-        }else{
-            RPC_ADPT_VLOG_ERR("IP address is invalid. Please double check your input(%s)\n", m_dev_ip_str);
+            RPC_ADPT_VLOG_INFO("%s: %s (ipv6)\n", ENV_VAR_DEV_IP, m_dev_ip_str);
+        } else {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "IP address is invalid. Please double check your input(%s)\n",
+                              m_dev_ip_str);
             return -1;
         }
     }else if(strlen(m_dev_name_str) > 0){
@@ -119,12 +121,13 @@ int ConfigSettings::ParseEnvVars()
             if(inet_pton(AF_INET6, m_src_eid_str, &(m_src_eid)) == 1){
                 RPC_ADPT_VLOG_INFO("%s: %s (eid)\n", ENV_VAR_DEV_SRC_EID, m_src_eid_str);
             }else {
-                RPC_ADPT_VLOG_ERR("Eid is invalid. Please double check your input(%s)\n", m_src_eid_str);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Eid is invalid. Please double check your input(%s)\n",
+                                  m_src_eid_str);
                 return -1;
             }
-        } 
+        }
     }
-    
+
     RPC_ADPT_VLOG_INFO("%s: %d\n", ENV_VAR_EID_IDX, m_eid_idx);
     RPC_ADPT_VLOG_INFO("%s: %d\n", ENV_VAR_TX_DEPTH, m_tx_depth);
 
@@ -135,7 +138,7 @@ int ConfigSettings::ParseEnvVars()
 
     if(strlen(m_stats_str) > 0){
         m_stats_enable = BoolVal::BoolConverter(m_stats_str);
-        RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_STATS, BoolVal::BoolConverter(m_stats_enable),m_stats_str);
+        RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_STATS, BoolVal::BoolConverter(m_stats_enable), m_stats_str);
     }
 
     return 0;

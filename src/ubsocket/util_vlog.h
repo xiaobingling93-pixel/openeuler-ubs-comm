@@ -19,9 +19,9 @@
 #define UTIL_VLOG_PRINT_PERIOD_MS   (1000)
 #define UTIL_VLOG_PRINT_TIMES       (10)
 
-#define UTIL_VLOG(__ctx, __level, ...)  \
+#define UTIL_VLOG( __error_type, __ctx, __level, ...)  \
     if (!::ubsocket::util_vlog_drop(__ctx, __level)) {  \
-        ::ubsocket::util_vlog_output(__ctx, __level, __func__, __LINE__, ##__VA_ARGS__);    \
+        ::ubsocket::util_vlog_output( __error_type, __ctx, __level, __func__, __LINE__, ##__VA_ARGS__);    \
     }
 
 #define UTIL_LIMIT_VLOG(__ctx, __level, ...)  \
@@ -29,7 +29,7 @@
         static uint32_t count_call = 0; \
         static uint64_t last_time = 0;  \
         if (::ubsocket::util_vlog_limit(__ctx, &count_call, &last_time)) {  \
-            ::ubsocket::util_vlog_output(__ctx, __level, __func__, __LINE__, ##__VA_ARGS__);    \
+            ::ubsocket::util_vlog_output( __error_type, __ctx, __level, __func__, __LINE__, ##__VA_ARGS__);    \
         }   \
     }
 
@@ -45,6 +45,16 @@ typedef enum util_vlog_level {
     UTIL_VLOG_LEVEL_DEBUG,
     UTIL_VLOG_LEVEL_MAX,
 } util_vlog_level_t;
+
+typedef enum error_type {
+    UMQ_AE,
+    UMQ_API,
+    UMQ_CQE,
+    UBSocket,
+    ERROR_TYPE_MAX,
+} error_type_t;
+
+const char *error_type_to_str(error_type_t error_type);
 
 typedef struct util_vlog_ctx {
     util_vlog_level_t level;
@@ -68,8 +78,8 @@ static inline bool util_vlog_drop(util_vlog_ctx_t *ctx, util_vlog_level_t level)
     return level > ctx->level;
 }
 
-void util_vlog_output(
-    util_vlog_ctx_t *ctx, util_vlog_level_t level, const char *function, int line, const char *format, ...);
+void util_vlog_output(error_type_t error_type, util_vlog_ctx_t *ctx, util_vlog_level_t level, const char *function,
+                      int line, const char *format, ...);
 
 util_vlog_level_t util_vlog_level_converter_from_str(const char *str, util_vlog_level_t default_level);
 const char *util_vlog_level_converter_to_str(util_vlog_level_t level);

@@ -30,7 +30,7 @@ public:
     explicit QbufQueue(uint32_t itemNb)
     {
         if (InitQueue(itemNb) != 0) {
-            RPC_ADPT_VLOG_ERR("Init qbuf queue failed. \n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Init qbuf queue failed. \n");
             return;
         }
     }
@@ -111,7 +111,8 @@ private:
         headLen = RoundUp(headLen, pageSize);
         m_q = reinterpret_cast<struct QbufQueueT<T> *>(memalign(pageSize, headLen));
         if (m_q == nullptr) {
-            RPC_ADPT_VLOG_ERR("Init qbuf queue memalgin failed, pageSize %u, headLen %u, errno %d \n", pageSize,
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Init qbuf queue memalgin failed, pageSize %u, headLen %u, errno %d \n", pageSize,
                               headLen, errno);
             return -1;
         }

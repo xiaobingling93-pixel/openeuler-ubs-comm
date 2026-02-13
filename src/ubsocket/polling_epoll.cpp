@@ -112,7 +112,7 @@ int PollingEpoll::EpollListRemove(EpList *epList, int fd)
 int PollingEpoll::IsExistInEpollList(EpList *epList, int fd)
 {
     if (UNLIKELY(epList == nullptr)) {
-        RPC_ADPT_VLOG_ERR("Epoll list is null. \n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Epoll list is null. \n");
         return -1;
     }
 
@@ -129,7 +129,7 @@ int PollingEpoll::IsExistInEpollList(EpList *epList, int fd)
 void PollingEpoll::EpollListModify(EpList *epList, int fd, uint32_t epEvent)
 {
     if (UNLIKELY(epList == nullptr)) {
-        RPC_ADPT_VLOG_ERR("Epoll list is null. \n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Epoll list is null. \n");
         return;
     }
 
@@ -147,12 +147,12 @@ void PollingEpoll::EpollListModify(EpList *epList, int fd, uint32_t epEvent)
 PollingErrCode PollingEpoll::EpollListInsert(EpList *epList, EpItem epItem)
 {
     if (UNLIKELY(epList == nullptr)) {
-        RPC_ADPT_VLOG_ERR("Epoll list is null. \n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Epoll list is null. \n");
         return PollingErrCode::ERR;
     }
     EpListNode *newNode = (EpListNode *)malloc(sizeof(EpListNode));
     if (UNLIKELY(newNode == nullptr)) {
-        RPC_ADPT_VLOG_ERR("Insert epoll list allocate memory failed. \n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Insert epoll list allocate memory failed. \n");
         errno = ENOMEM;
         return PollingErrCode::ERR;
     }
@@ -180,7 +180,7 @@ PollingErrCode PollingEpoll::AddEventIntoRdList(EpList *readyList, EpItem epItem
     EpItem retEpItem = {epItem.fd, event};
     PollingErrCode rc = EpollListInsert(readyList, retEpItem);
     if (UNLIKELY(rc != PollingErrCode::OK)) {
-        RPC_ADPT_VLOG_ERR("Failed to insert event into readyList. fd=%d. \n", epItem.fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to insert event into readyList. fd=%d. \n", epItem.fd);
         return rc;
     }
     return PollingErrCode::OK;
@@ -254,7 +254,8 @@ PollingErrCode PollingEpoll::EpOutEventProcess(EventPoll *eventPoll, EpItem epIt
     PollingErrCode rc = PollingErrCode::OK;
     if (obj != nullptr) {
         rc = obj->IsShmWriteable(epItem.event.events);
-        RPC_ADPT_VLOG_WARN("[DEBUG] EPOUT event, writeable %d, epfd=%d, fd=%d.\n", rc, eventPoll->epfd, epItem.fd);
+        RPC_ADPT_VLOG_WARN(
+            "[DEBUG] EPOUT event, writeable %d, epfd=%d, fd=%d.\n", rc, eventPoll->epfd, epItem.fd);
     }
 #else
     PollingErrCode rc = IsUmqWriteable();
@@ -275,7 +276,8 @@ void PollingEpoll::EpollProcess(EventPoll *eventPoll)
         int fd = curNode->epItem.fd;
         Socket *socket = g_table[fd];
         if (socket == nullptr) {
-            RPC_ADPT_VLOG_ERR("Invalid fd in epoll wait list, epfd=%d, fd=%d.\n", eventPoll->epfd, fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid fd in epoll wait list, epfd=%d, fd=%d.\n", eventPoll->epfd,
+                              fd);
             EpollListRemove(eventPoll->waitList, fd);
             continue;
         }
@@ -366,7 +368,7 @@ int PollingEpoll::SocketCreate(Socket **out, int fd, SocketType type, uint64_t u
 int PollingEpoll::EpollListReplace(EpList *epList, EpItem epItem)
 {
     if (UNLIKELY(epList == nullptr)) {
-        RPC_ADPT_VLOG_ERR("Epoll list is null. \n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Epoll list is null. \n");
         return -1;
     }
 

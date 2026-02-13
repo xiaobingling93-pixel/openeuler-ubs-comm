@@ -16,7 +16,7 @@
 #include <iostream>
 
 #include "rpc_adpt_vlog.h"
-
+#include "../util_vlog.h"
 
 class RpcAdptVlogTest : public testing::Test {
 public:
@@ -70,7 +70,7 @@ TEST_F(RpcAdptVlogTest, TestRpcAdptVlogErr_ShouldNotOutput)
 {
     RpcAdptVlogCtxSet(ubsocket::UTIL_VLOG_LEVEL_CRIT, nullptr);
     testing::internal::CaptureStdout();
-    RPC_ADPT_VLOG_ERR("Test error message");
+    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Test error message");
     std::string output = testing::internal::GetCapturedStdout();
     // low level, catch nothing
     std::cout << output << std::endl;
@@ -81,7 +81,7 @@ TEST_F(RpcAdptVlogTest, TestRpcAdptVlogErr_ShouldOutput)
 {
     RpcAdptVlogCtxSet(ubsocket::UTIL_VLOG_LEVEL_ERR, nullptr);
     testing::internal::CaptureStdout();
-    RPC_ADPT_VLOG_ERR("Test error message");
+    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Test error message");
     std::string output = testing::internal::GetCapturedStdout();
     // high level, catch vlog output
     std::cout << output << std::endl;
