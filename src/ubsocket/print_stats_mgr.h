@@ -128,7 +128,7 @@ private:
             fprintf(fp, "%s\n", oss.str().c_str());
             fclose(fp);
         } else {
-            RPC_ADPT_VLOG_ERR("Fail to open json file: %s\n", filename);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Fail to open json file: %s\n", filename);
         }
 
         struct stat st;
@@ -150,21 +150,22 @@ private:
                 int ret = snprintf_s(archiveFilename, sizeof(archiveFilename), sizeof(archiveFilename) - 1,
                                 "%s/ubsocket_kpi_%lu_%s.json", cleanPath.c_str(), (uint32_t)getpid(), timeBuf);
                 if (ret < 0 || ret >= (int)sizeof(archiveFilename)) {
-                    RPC_ADPT_VLOG_ERR("Failed to create archive filename for kpi json\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create archive filename for kpi json\n");
                     return;
                 }
 
                 if (std::rename(filename, archiveFilename) != 0) {
-                    RPC_ADPT_VLOG_ERR("Failed to create archiveFilename\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create archiveFilename\n");
                     return;
                 }
 
                 if (chmod(archiveFilename, DEFAULT_FILE_PERMISSION) != 0) {
-                    RPC_ADPT_VLOG_ERR("Failed to set readonly for archiveFilename\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to set readonly for archiveFilename\n");
                     return;
                 }
 
-                RPC_ADPT_VLOG_INFO("Successfully archive ubsocket kpi json: %s -> %s (size: %ld bytes)\n",
+                RPC_ADPT_VLOG_INFO(
+                    "Successfully archive ubsocket kpi json: %s -> %s (size: %ld bytes)\n",
                     filename, archiveFilename, st.st_size);
             }
         }

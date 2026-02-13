@@ -76,7 +76,7 @@ EXPOSE_C_DEFINE int socket(int domain, int type, int protocol)
     if (context->GetUsePolling()) {
         Socket *sock = NULL;
         if (PollingEpoll::GetInstance().SocketCreate(&sock, fd, SocketType::SOCKET_TYPE_TCP) != 0) {
-            RPC_ADPT_VLOG_ERR("SocketCreate failed \n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SocketCreate failed \n");
         } else {
             PollingEpoll::GetInstance().AddSocket(fd, sock);
         }
@@ -346,7 +346,7 @@ EXPOSE_C_DEFINE int epoll_create(int size)
     }
 
     if (context->GetUsePolling() && PollingEpoll::GetInstance().PollingEpollCreate(epoll_fd) != 0) {
-        RPC_ADPT_VLOG_ERR("PollingEpollCreate failed \n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "PollingEpollCreate failed \n");
     }
 
     // Delete existing objects and record new objects in the list.

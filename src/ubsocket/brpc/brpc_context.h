@@ -103,7 +103,8 @@ class Context : public Brpc::ConfigSettings {
         int written = std::snprintf(shm.name, MAX_REGION_NAME_DESC_LENGTH, "%s_%d_%llu", prefix, static_cast<int>(pid),
                                     static_cast<unsigned long long>(seq));
         if (written < 0 || static_cast<size_t>(written) >= MAX_REGION_NAME_DESC_LENGTH) {
-            RPC_ADPT_VLOG_ERR("SHM name too long: prefix=\"%s\", pid=%d, seq=%llu", prefix, pid, seq);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SHM name too long: prefix=\"%s\", pid=%d, seq=%llu", prefix, pid,
+                              seq);
             shm.name[0] = '\0';
             return false;
         }
@@ -115,7 +116,7 @@ class Context : public Brpc::ConfigSettings {
     void InitShm()
     {
         if (!ShmMgr::GetShmMgr()->IsInitialized()) {
-            RPC_ADPT_VLOG_ERR("Failed to initialize shm for brpc\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to initialize shm for brpc\n");
             SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
             return;
         }
@@ -141,7 +142,7 @@ class Context : public Brpc::ConfigSettings {
     Context() : Brpc::ConfigSettings()
     {
         if(Brpc::ConfigSettings::Init() != 0){
-            RPC_ADPT_VLOG_ERR("Failed to initialize configure settings for brpc\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to initialize configure settings for brpc\n");
             SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
             return;
         }
@@ -151,9 +152,10 @@ class Context : public Brpc::ConfigSettings {
             if(GetBrpcAllocSymStr() != nullptr && GetBrpcDeallocSymStr() != nullptr){
                 RecordApi(RTLD_DEFAULT, GetBrpcAllocSymStr(), m_alloc_addr);
                 RecordApi(RTLD_DEFAULT, GetBrpcDeallocSymStr(), m_dealloc_addr);
-                if(m_alloc_addr == nullptr || m_dealloc_addr == nullptr){
+                if(m_alloc_addr == nullptr || m_dealloc_addr == nullptr) {
                     RPC_ADPT_VLOG_WARN("Failed to load and replace allocate(%s)/deallocate(%s) "
-                        "function for brpc, try to scan ELF\n", GetBrpcAllocSymStr(), GetBrpcDeallocSymStr());
+                                       "function for brpc, try to scan ELF\n",
+                                       GetBrpcAllocSymStr(), GetBrpcDeallocSymStr());
                 }
             }
 
@@ -194,7 +196,7 @@ class Context : public Brpc::ConfigSettings {
                 umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV6;
                 ret = sprintf_s(umq_config.trans_info[0].dev_info.ipv6.ip_addr, UMQ_IPV6_SIZE, "%s", dev_info);
                 if(ret < 0 || ret >= UMQ_IPV6_SIZE){
-                    RPC_ADPT_VLOG_ERR("Failed to sprintf_s ipv6 address\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s ipv6 address\n");
                     ResetBrpcAllocator();
                     SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                     return;
@@ -205,7 +207,7 @@ class Context : public Brpc::ConfigSettings {
                 umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV4;
                 ret = sprintf_s(umq_config.trans_info[0].dev_info.ipv4.ip_addr, UMQ_IPV4_SIZE, "%s", dev_info);
                 if (ret < 0 || ret >= UMQ_IPV4_SIZE) {
-                    RPC_ADPT_VLOG_ERR("Failed to sprintf_s ipv4 address\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s ipv4 address\n");
                     ResetBrpcAllocator();
                     SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                     return;
@@ -216,7 +218,7 @@ class Context : public Brpc::ConfigSettings {
             umq_config.trans_info[0].trans_mode = GetTransMode();
             ret = sprintf_s(umq_config.trans_info[0].dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, "%s", dev_info);
             if (ret < 0 || ret >= UMQ_DEV_NAME_SIZE) {
-                RPC_ADPT_VLOG_ERR("Failed to sprintf_s device name\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s device name\n");
                 ResetBrpcAllocator();
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;
@@ -236,7 +238,7 @@ class Context : public Brpc::ConfigSettings {
             umq_config.trans_info[0].trans_mode = GetTransMode();
             ret = sprintf_s(umq_config.trans_info[0].dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, "%s", "bonding_dev_0");
             if (ret < 0 || ret >= UMQ_DEV_NAME_SIZE) {
-                RPC_ADPT_VLOG_ERR("Failed to sprintf_s device name\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s device name\n");
                 ResetBrpcAllocator();
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;
@@ -250,7 +252,7 @@ class Context : public Brpc::ConfigSettings {
             m_process_socket_id = GetCurrentProcessSocketId();
             m_socket_ids = GetSocketIdsViaNumaSysfs();
             if (m_socket_ids.empty() || m_process_socket_id==-1) {
-                RPC_ADPT_VLOG_ERR("Failed get socket id in cpu affinity policy.\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed get socket id in cpu affinity policy.\n");
                 ResetBrpcAllocator();
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;
@@ -259,7 +261,7 @@ class Context : public Brpc::ConfigSettings {
 
         ret = umq_init(&umq_config);
         if(ret != 0){
-            RPC_ADPT_VLOG_ERR("Failed to execute umq init\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq init\n");
             ResetBrpcAllocator();
             SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
             return;
@@ -270,7 +272,7 @@ class Context : public Brpc::ConfigSettings {
             char devName[] = "bonding_dev_0";
             int infoGetRet = umq_dev_info_get(devName, UMQ_TRANS_MODE_UB, &umq_dev_info);
             if (infoGetRet != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to get bonding device information\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get bonding device information\n");
                 ResetBrpcAllocator();
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;
@@ -283,7 +285,7 @@ class Context : public Brpc::ConfigSettings {
                 }
             }
             if (i == umq_dev_info.ub.eid_cnt) {
-                RPC_ADPT_VLOG_ERR("Failed to find bonding eid\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to find bonding eid\n");
                 ResetBrpcAllocator();
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;

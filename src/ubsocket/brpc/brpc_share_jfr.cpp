@@ -25,7 +25,8 @@ int ShareJfrEventFdEpollEvent::AddEpollEvent(int epoll_fd)
 
     int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_fd, &tmp_event);
     if (ret != 0) {
-        RPC_ADPT_VLOG_ERR("Origin epoll control add share jfr event fd failed, epfd: %d, share jfr event fd: %d\n",
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                          "Origin epoll control add share jfr event fd failed, epfd: %d, share jfr event fd: %d\n",
                           epoll_fd, m_fd);
         return ret;
     }
@@ -57,7 +58,7 @@ void ShareJfrEventFdEpollEvent::WakeUp()
 {
     uint64_t notification = 1;
     if (eventfd_write(m_fd, notification) < 0) {
-        RPC_ADPT_VLOG_ERR("Wakeup sub-umq (socket fd %d) failed\n", m_fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Wakeup sub-umq (socket fd %d) failed\n", m_fd);
     }
 }
 
@@ -65,7 +66,8 @@ int ShareJfrRxEpollEvent::AddEpollEvent(int epoll_fd, bool use_polling)
 {
     if (!SocketFdEpollTable::Contains(m_fd)) {
         if (::EpollEvent::AddEpollEvent(epoll_fd, use_polling) < 0) {
-            RPC_ADPT_VLOG_ERR("Failed to add share jfr rx fd to epoll, epfd: %d, share jfr rx fd: %d\n", epoll_fd,
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to add share jfr rx fd to epoll, epfd: %d, share jfr rx fd: %d\n", epoll_fd,
                               m_fd);
             return -1;
         }
@@ -83,12 +85,13 @@ int ShareJfrRxEpollEvent::AddEpollEvent(int epoll_fd, bool use_polling)
     try {
         event_fd_epoll_event = new ShareJfrEventFdEpollEvent(m_origin_fd, &m_event, event_fd);
     } catch (std::exception &e) {
-        RPC_ADPT_VLOG_ERR("%s\n", e.what());
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
         return -1;
     }
 
     if (event_fd_epoll_event->AddEpollEvent(epoll_fd) < 0) {
-        RPC_ADPT_VLOG_ERR("Failed to add share jfr event fd to epoll, epfd: %d, share jfr event fd: %d\n", epoll_fd,
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                          "Failed to add share jfr event fd to epoll, epfd: %d, share jfr event fd: %d\n", epoll_fd,
                           event_fd);
         return -1;
     }
@@ -132,7 +135,7 @@ int ShareJfrRxEpollEvent::ProcessEpollEvent(struct epoll_event *input_event, str
     umq_buf_t *buf[POLL_BATCH_MAX];
     int poll_num = PollShareJfrAndRefillRx(buf, POLL_BATCH_MAX);
     if (poll_num < 0) {
-        RPC_ADPT_VLOG_ERR("Failed to poll umq of share jfr, share jfr fd: %d\n", m_fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to poll umq of share jfr, share jfr fd: %d\n", m_fd);
         return -1;
     }
 
@@ -172,7 +175,7 @@ int ShareJfrRxEpollEvent::ProcessEpollEvent(struct epoll_event *input_event, str
 
     EpollFd *epoll_fd_obj = (EpollFd *)Fd<::EpollFd>::GetFdObj(m_epoll_fd);
     if (epoll_fd_obj == nullptr) {
-        RPC_ADPT_VLOG_ERR("Failed to get epoll fd object, epoll fd: %d \n", m_epoll_fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get epoll fd object, epoll fd: %d \n", m_epoll_fd);
         return -1;
     }
 

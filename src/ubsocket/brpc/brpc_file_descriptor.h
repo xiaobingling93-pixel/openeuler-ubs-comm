@@ -17,6 +17,9 @@
 #include <unordered_set>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <arpa/inet.h>
+#include <string>
+#include <netinet/in.h>
 #include "umq_pro_api.h"
 #include "umq_errno.h"
 #include "brpc_context.h"
@@ -38,6 +41,19 @@
 #define HANDLE_THRESHOLD        (2)
 #define RETRIEVE_THRESHOLD      (1)
 #define REPORT_THRESHOLD        (1)
+
+#ifndef EID_FMT
+#define EID_FMT "%2.2x%2.2x:%2.2x%2.2x:%2.2x%2.2x:%2.2x%2.2x:%2.2x%2.2x:%2.2x%2.2x:%2.2x%2.2x:%2.2x%2.2x"
+#endif
+
+#ifndef EID_RAW_ARGS
+#define EID_RAW_ARGS(eid) eid[0], eid[1], eid[2], eid[3], eid[4], eid[5], eid[6], eid[7], eid[8], eid[9], \
+eid[10], eid[11], eid[12], eid[13], eid[14], eid[15]
+#endif
+
+#ifndef EID_ARGS
+#define EID_ARGS(eid) EID_RAW_ARGS((eid).raw)
+#endif
 
 constexpr uint64_t SIZE_8K  = 8192;
 constexpr uint64_t SIZE_16K = 16384;
@@ -238,7 +254,9 @@ public:
             share_jfr_rx_epoll_event = nullptr;
         }
     }
-
+    ALWAYS_INLINE const std::string& GetPeerIp() const { return m_peer_info.peer_ip; }
+    ALWAYS_INLINE const umq_eid_t& GetPeerEid() const { return m_peer_info.peer_eid; }
+    ALWAYS_INLINE int GetPeerFd() const { return m_peer_info.peer_fd; }
     ALWAYS_INLINE int GetEventFd(void)
     {
         return m_event_fd;
@@ -270,9 +288,46 @@ public:
         }();
         return enable;
     }
+    /**
+     * @brief 从sockaddr结构体提取IP地址字符串
+     * @param address 指向sockaddr结构体的指针
+     * @return 成功返回IP地址字符串，失败返回空字符串
+     */
+    ALWAYS_INLINE std::string ExtractIpFromSockAddr(const struct sockaddr *address)
+    {
+        if (address == nullptr) {
+            return "";
+        }
+
+        char ip_str[INET6_ADDRSTRLEN] = {0};
+        const char* result = nullptr;
+
+        if (address->sa_family == AF_INET) {
+            struct sockaddr_in* addr_in = (struct sockaddr_in*)address;
+            result = inet_ntop(AF_INET, &addr_in->sin_addr, ip_str, INET_ADDRSTRLEN);
+            m_peer_info.peer_ip = ip_str;
+        } else if (address->sa_family == AF_INET6) {
+            struct sockaddr_in6* addr_in6 = (struct sockaddr_in6*)address;
+            result = inet_ntop(AF_INET6, &addr_in6->sin6_addr, ip_str, INET6_ADDRSTRLEN);
+            m_peer_info.peer_ip = ip_str;
+        }
+
+        return (result != nullptr) ? std::string(ip_str) : "";
+    }
+
     ALWAYS_INLINE int Accept(struct sockaddr *address, socklen_t *address_len)
     {
         int fd = OsAPiMgr::GetOriginApi()->accept(m_fd, address, address_len);
+        if (fd >= 0 && address != nullptr) {
+            SocketFd* socket_fd_obj = static_cast<SocketFd*>(Fd<::SocketFd>::GetFdObj(fd));
+            if (socket_fd_obj) {
+                // 使用提取的接口获取IP地址
+                std::string peer_ip = ExtractIpFromSockAddr(address);
+                // 对端fd就是accept返回的fd
+                m_peer_info.peer_fd = fd;
+            }
+        }
+
         if (m_tx_use_tcp || m_rx_use_tcp) {
             return fd;
         }
@@ -287,7 +342,8 @@ public:
             * b. fd为阻塞，则等待直到有连接完成或者触发异常，比如被信号中断，返回-1，errno为EINTR，保持原错误码直接返回上层
             */
             if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {  // nonblocking
-                RPC_ADPT_VLOG_ERR("tcp accept failed, fd: %d, %d, %s\n", m_fd, errno, strerror(errno));
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "tcp accept failed,Peer IP:%s, fd: %d, %d, %s\n",
+                                  GetPeerIp().c_str(), m_fd, errno, strerror(errno));
                 return fd;
             }
             RPC_ADPT_VLOG_DEBUG("tcp accept need try again, fd: %d, %d, %s\n", m_fd, errno, strerror(errno));
@@ -304,7 +360,8 @@ public:
         ssize_t magic_number_recv_size = 0;
         int ret = ValidateMagicNumber(fd, magic_number, magic_number_recv_size);
         if (ret > 0 && !AutoFallbackTCP()) {
-            RPC_ADPT_VLOG_ERR("Failed to accept as protocol dismatch\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to accept as protocol dismatch,Peer IP:%s\n",
+                              GetPeerIp().c_str());
             OsAPiMgr::GetOriginApi()->close(fd);
             return -1;
         }
@@ -316,15 +373,16 @@ public:
             try {
                 socket_fd_obj = new SocketFd(fd, magic_number, (uint32_t)magic_number_recv_size);
                 Fd<::SocketFd>::OverrideFdObj(fd, socket_fd_obj);
-                RPC_ADPT_VLOG_WARN("Auto fallback to TCP fd: %d\n", fd);
+                RPC_ADPT_VLOG_WARN("Auto fallback to TCP,Peer IP:%s, fd: %d\n", GetPeerIp().c_str(), fd);
             } catch (std::exception& e) {
-                RPC_ADPT_VLOG_ERR("%s\n", e.what());
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
                 OsAPiMgr::GetOriginApi()->close(fd);
                 return -1;
             }
         } else if (ret == 0) {
             if (DoAccept(fd) != 0) {
-                RPC_ADPT_VLOG_WARN("Fatal error occurred, fd: %d fallback to TCP/IP", fd);
+                RPC_ADPT_VLOG_WARN("Fatal error occurred,Peer IP:%s, fd: %d fallback to TCP/IP", GetPeerIp().c_str(),
+                                   fd);
                 /* Clear messages that already exist on the TCP link to prevent
                  * dirty messages from affecting user data transmission */
                 FlushSocketMsg(fd);
@@ -350,39 +408,50 @@ public:
         }
         umq_eid_t localEid = context->GetDevSrcEid();
         if (SendSocketData(m_fd, &localEid, sizeof(umq_eid_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_eid_t)) {
-            RPC_ADPT_VLOG_ERR("Failed to send local eid message in connect, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send local eid message in connect,Peer IP:%s, fd: %d\n",
+                              GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
         umq_eid_t remoteEid;
         if (RecvSocketData(
             m_fd, &remoteEid, sizeof(umq_eid_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_eid_t)) {
-            RPC_ADPT_VLOG_ERR("Failed to receive remote eid message in connect, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to receive remote eid message in connect,Peer IP:%s, fd: %d\n",
+                              GetPeerIp().c_str(), m_fd);
             return -1;
         }
+        // 保存对端EID
+        m_peer_info.peer_eid = remoteEid;
 
         *connEid = context->GetDevSrcEid();
         if (localEid != remoteEid) {
             dev_schedule_policy peerSchedulePolicy;
             if (RecvSocketData(m_fd, &peerSchedulePolicy, sizeof(dev_schedule_policy), CONTROL_PLANE_TIMEOUT_MS) !=
                 sizeof(dev_schedule_policy)) {
-                RPC_ADPT_VLOG_ERR("Failed to receive remote schedule policy in connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to receive remote schedule policy in connect,Peer IP:%s, fd: %d\n",
+                                  GetPeerIp().c_str(), m_fd);
                 return -1;
             }
 
             dev_schedule_policy schedulePolicy = context->GetDevSchedulePolicy();
             if (SendSocketData(m_fd, &schedulePolicy, sizeof(dev_schedule_policy), CONTROL_PLANE_TIMEOUT_MS) !=
                 sizeof(dev_schedule_policy)) {
-                RPC_ADPT_VLOG_ERR("Failed to send local policy in connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send local policy in connect,Peer IP:%s, fd: %d\n",
+                                  GetPeerIp().c_str(), m_fd);
                 return -1;
             }
 
             if (peerSchedulePolicy == schedulePolicy && schedulePolicy == dev_schedule_policy::CPU_AFFINITY) {
-                RPC_ADPT_VLOG_WARN("Use consistent schedule policy CPU_AFFINITY in connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_WARN("Use consistent schedule policy CPU_AFFINITY in connect,Peer IP:%s, fd: %d\n",
+                                   GetPeerIp().c_str(), m_fd);
                 // 使用亲和策略需要发送socketId
                 int mProcessSocketId = context->GetProcessSocketId();
                 if (SendSocketData(m_fd, &mProcessSocketId, sizeof(int), CONTROL_PLANE_TIMEOUT_MS) != sizeof(int)) {
-                    RPC_ADPT_VLOG_ERR("Failed to send local socket id in connect, fd: %d\n", m_fd);
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                      "Failed to send local socket id in connect,Peer IP:%s, fd: %d\n",
+                                      GetPeerIp().c_str(), m_fd);
                     return -1;
                 }
             }
@@ -390,15 +459,19 @@ public:
             umq_route_t connRoute;
             if (RecvSocketData(
                 m_fd, &connRoute, sizeof(umq_route_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_route_t)) {
-                RPC_ADPT_VLOG_ERR("Failed to receive remote eid message in connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to receive remote eid message in connect,Peer IP:%s, fd: %d\n",
+                                  GetPeerIp().c_str(), m_fd);
                 return -1;
             }
 
             if (CheckDevAdd(connRoute.dst) != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to add dev in connect\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add dev in connect,Peer IP:%s, fd: %d\n",
+                                  GetPeerIp().c_str(), m_fd);
                 return -1;
             }
-
+            // 保存对端EID
+            m_peer_info.peer_eid = connRoute.src;
             *connEid = connRoute.dst;
         }
 
@@ -412,14 +485,20 @@ public:
         ub_trans_mode localTransMode = context->GetUbTransMode();
         if (SendSocketData(m_fd, &localTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
             != sizeof(ub_trans_mode)) {
-            RPC_ADPT_VLOG_ERR("Failed to send local TransMode message in connect, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to send local TransMode message in connect,Peer eid:" EID_FMT
+                              ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
         ub_trans_mode remoteTransMode;
         if (RecvSocketData(m_fd, &remoteTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
             != sizeof(ub_trans_mode)) {
-            RPC_ADPT_VLOG_ERR("Failed to receive remote TransMode message in connect, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to receive remote TransMode message in connect,Peer eid:" EID_FMT
+                              ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
@@ -443,20 +522,25 @@ public:
 
         int ret = CreateLocalUmq(&connEid);
         if ((ret < 0) || (ret == RETRY_NEEDED)) {
-            RPC_ADPT_VLOG_ERR("Failed to create umq\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create umq,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return ret;
         }
 
         local_cp_msg.queue_bind_info_size =
             umq_bind_info_get(m_local_umqh, local_cp_msg.queue_bind_info, UMQ_BIND_INFO_SIZE_MAX);
         if (local_cp_msg.queue_bind_info_size == 0) {
-            RPC_ADPT_VLOG_ERR("Failed to execute umq_bind_info_get\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to execute umq_bind_info_get,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return RETRY_NEEDED;
         }
         
         uint32_t len = sizeof(local_cp_msg) - sizeof(uint64_t);
         if (SendSocketData(m_fd, &local_cp_msg.queue_bind_info_size, len, CONTROL_PLANE_TIMEOUT_MS) != len) {
-            RPC_ADPT_VLOG_ERR("Failed to send local control message, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to send local control message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
         RPC_ADPT_VLOG_DEBUG("send local control message, fd: %d, cp msg len: %d, bind info len: %d\n",
@@ -464,34 +548,44 @@ public:
         
         if (RecvSocketData(
             m_fd, &remote_cp_msg, sizeof(remote_cp_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(remote_cp_msg)) {
-            RPC_ADPT_VLOG_ERR("Failed to receive remote control message, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to receive remote control message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
         RPC_ADPT_VLOG_DEBUG("recv remote control message, fd: %d, cp msg len: %d, bind info len: %d\n",
             m_fd, sizeof(remote_cp_msg), remote_cp_msg.queue_bind_info_size);
 
         if (umq_bind(m_local_umqh, remote_cp_msg.queue_bind_info, remote_cp_msg.queue_bind_info_size) != UMQ_SUCCESS) {
-            RPC_ADPT_VLOG_ERR("Failed to execute umq_bind\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to execute umq_bind,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return RETRY_NEEDED;
         }
         m_bind_remote = true;
 
         // 1650 RC mode not support post rx right after create jetty, thus, move post rx operation after bind()
         if (PrefillRx() != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to fill rx buffer to umq, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to fill rx buffer to umq,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
         if (SendSocketData(
             m_fd, send_sync_msg, sizeof(send_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(send_sync_msg)) {
-            RPC_ADPT_VLOG_ERR("Failed to send sync done message, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to send sync done message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
         if (RecvSocketData(
             m_fd, recv_sync_msg, sizeof(recv_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(recv_sync_msg) ||
             strcmp(recv_sync_msg, UMQ_BIND_SYNC_MSG) != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to receive sync done message, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to receive sync done message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
@@ -503,32 +597,42 @@ public:
         uint64_t magic_number = CONTROL_PLANE_MAGIC_NUMBER;
         if (SendSocketData(
             m_fd, &magic_number, sizeof(uint64_t), NEGOTIATE_TIMEOUT_MS) != sizeof(uint64_t)) {
-            RPC_ADPT_VLOG_ERR("Failed to send magic number, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send magic number, fd: %d\n", m_fd);
             return -1;
         }
 
         if (ConnectExchangeTransMode() != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to exchange TransMode in connect\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to exchange TransMode in connect,Peer IP:%s, fd: %d\n",
+                              GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
         umq_eid_t connEid;
         if (ConnectExchangeEid(&connEid) < 0) {
-            RPC_ADPT_VLOG_ERR("Failed to exchange eid in connect\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to exchange eid in connect,Peer IP:%s, fd: %d\n",
+                              GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
         int ackRet = DoUbConnect(connEid);
+        if (ackRet != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to receive sync done message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+        }
         if (SendSocketData(
             m_fd, &ackRet, sizeof(int), CONTROL_PLANE_TIMEOUT_MS) != sizeof(int)) {
-            RPC_ADPT_VLOG_ERR("Failed to send ack ret, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send ack ret,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
         int peerRet;
         if (RecvSocketData(
             m_fd, &peerRet, sizeof(int), CONTROL_PLANE_TIMEOUT_MS) != sizeof(int)) {
-            RPC_ADPT_VLOG_ERR("Failed to receive peer ack ret, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to receive peer ack ret,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return -1;
         }
 
@@ -544,22 +648,32 @@ public:
             umq_route_t otherConnRoute;
             if (RecvSocketData(
                 m_fd, &otherConnRoute, sizeof(umq_route_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_route_t)) {
-                RPC_ADPT_VLOG_ERR("Failed to receive remote eid message in retry connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to receive remote eid message in retry connect,Peer eid:" EID_FMT
+                                  ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                 return -1;
             }
 
             if (CheckDevAdd(otherConnRoute.dst) != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to add dev in retry connect\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to add dev in retry connect,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                 return -1;
             }
             ackRet = DoUbConnect(otherConnRoute.dst);
             if (ackRet != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to get new connect in retry connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to get new connect in retry connect,Peer eid:" EID_FMT
+                                  ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                 return -1;
             }
         } else {
             if (ackRet != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to get new connect in connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to get new connect in connect,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                 return -1;
             }
         }
@@ -572,7 +686,8 @@ public:
             Socket *sock = NULL;
             if (PollingEpoll::GetInstance().SocketCreate(&sock, m_fd, SocketType::SOCKET_TYPE_TCP_CLIENT,
                                                          m_local_umqh) != 0) {
-                RPC_ADPT_VLOG_ERR("SocketCreate failed \n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SocketCreate failed,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             } else {
                 PollingEpoll::GetInstance().AddSocket(m_fd, sock);
             }
@@ -588,6 +703,13 @@ public:
     ALWAYS_INLINE int Connect (const struct sockaddr *address, socklen_t address_len)
     {
         int ret = OsAPiMgr::GetOriginApi()->connect(m_fd, address, address_len);
+        if (address != nullptr) {
+            // 使用提取的接口获取IP地址
+            std::string peer_ip = ExtractIpFromSockAddr(address);
+            // 对端fd就是accept返回的fd
+            m_peer_info.peer_fd = m_fd;
+        }
+
         if (m_tx_use_tcp || m_rx_use_tcp) {
             return ret;
         }
@@ -621,7 +743,9 @@ public:
 
         ret = DoConnect();
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to establish UB connection.");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to establish UB connection,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             Fd<::SocketFd>::OverrideFdObj(m_fd, nullptr);
             /* Clear messages that already exist on the TCP link to prevent 
                  * dirty messages from affecting user data transmission*/
@@ -757,7 +881,10 @@ public:
                     // try to wake up tx if necessary
                     bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                     if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                        RPC_ADPT_VLOG_ERR("write event fd%fd failed, errno: %d\n", m_event_fd, errno);
+                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                          "write event fd%fd failed,Peer eid:" EID_FMT
+                                          ",Peer IP:%s, fd: %d, errno: %d\n",
+                                          m_event_fd, EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), errno);
                     }
                 }
 
@@ -1258,7 +1385,8 @@ public:
                     // try to wake up tx if necessary
                     bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                     if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                        RPC_ADPT_VLOG_ERR("write event fd%fd failed, errno: %d\n", m_event_fd, errno);
+                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd%fd failed, errno: %d\n", m_event_fd,
+                                          errno);
                     }
 
                     if (buf_array[i]->total_data_size == 0) {
@@ -1375,7 +1503,8 @@ public:
                 break;
             } else { // poll_num == 0
                 if (!is_blocking) {
-                    RPC_ADPT_VLOG_ERR("Read: Non-blocking mode, no data available, setting errno = EAGAIN\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                      "Read: Non-blocking mode, no data available, setting errno = EAGAIN\n");
                     errno = EAGAIN;
                     return -1;
                 } else {
@@ -1402,7 +1531,8 @@ public:
                         // Handle flow control update
                         bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                         if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                            RPC_ADPT_VLOG_ERR("write event fd %d failed, errno: %d\n", m_event_fd, errno);
+                            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd %d failed, errno: %d\n", m_event_fd,
+                                              errno);
                         }
 
                         QBUF_LIST_NEXT(buf_array[i]) = nullptr;
@@ -1861,7 +1991,8 @@ public:
                 break;
             } else { // poll_num == 0
                 if (!is_blocking) {
-                    RPC_ADPT_VLOG_ERR("Recv: Non-blocking mode, no data available, setting errno = EAGAIN\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                      "Recv: Non-blocking mode, no data available, setting errno = EAGAIN\n");
                     errno = EAGAIN;
                     return -1;
                 } else {
@@ -1888,7 +2019,8 @@ public:
                         // Handle flow control update
                         bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                         if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                            RPC_ADPT_VLOG_ERR("write event fd %d failed, errno: %d\n", m_event_fd, errno);
+                            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd %d failed, errno: %d\n", m_event_fd,
+                                              errno);
                         }
 
                         QBUF_LIST_NEXT(buf_array[i]) = nullptr;
@@ -1962,7 +2094,8 @@ public:
                     // Update m_isblocking based on the origin fd blocking state
                     m_isblocking = IsBlocking(m_fd);
                 } else {
-                    RPC_ADPT_VLOG_ERR("fcntl set fd %d failed, ret is %d, errno %d\n", m_fd, ret, errno);
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl set fd %d failed, ret is %d, errno %d\n", m_fd, ret,
+                                      errno);
                 }
                 break;
             case F_GETOWN: // Get process ID or process group ID receiving SIGIO/SIGURG signals
@@ -1976,7 +2109,7 @@ public:
             case F_SETLK:          // Set file lock (non-blocking)
             case F_SETLKW:         // Set file lock (blocking)
             case F_GETLK:          // Get file lock information
-                RPC_ADPT_VLOG_ERR("fcntl fail, fd %d, cmd %d is not supported\n", m_fd, cmd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl fail, fd %d, cmd %d is not supported\n", m_fd, cmd);
                 break;
             default:
                 RPC_ADPT_VLOG_WARN("fcntl, fd %d, cmd %d may be not supported\n", m_fd, cmd);
@@ -1998,7 +2131,8 @@ public:
                     // Update m_isblocking based on the origin fd blocking state
                     m_isblocking = IsBlocking(m_fd);
                 } else {
-                    RPC_ADPT_VLOG_ERR("fcntl64 set fd %d failed, ret is %d, errno %d\n", m_fd, ret, errno);
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl64 set fd %d failed, ret is %d, errno %d\n", m_fd, ret,
+                                      errno);
                 }
                 break;
             case F_GETOWN: // Get process ID or process group ID receiving SIGIO/SIGURG signals
@@ -2013,7 +2147,7 @@ public:
             case F_SETLK:          // Set file lock (non-blocking)
             case F_SETLKW:         // Set file lock (blocking)
             case F_GETLK:          // Get file lock information
-                RPC_ADPT_VLOG_ERR("fcntl64 fail, fd %d, cmd %d is not supported\n", m_fd, cmd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl64 fail, fd %d, cmd %d is not supported\n", m_fd, cmd);
                 break;
             default:
                 RPC_ADPT_VLOG_WARN("fcntl64, fd %d, cmd %d may be not supported\n", m_fd, cmd);
@@ -2033,7 +2167,8 @@ public:
                 // set m_isblocking base on origin fd blocking state
                 m_isblocking = IsBlocking(m_fd);
             } else {
-                RPC_ADPT_VLOG_ERR("ioctl set fd %d FIONBIO failed, ret is %d, errno %d\n", m_fd, ret, errno);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "ioctl set fd %d FIONBIO failed, ret is %d, errno %d\n", m_fd,
+                                  ret, errno);
             }
         } else {
             RPC_ADPT_VLOG_WARN("ioctl set fd %d, request %d may be not supported\n", m_fd, request);
@@ -2060,7 +2195,7 @@ public:
         if (m_rx.m_epoll_in_msg_recv_size == 0) {
             m_closed.store(true, std::memory_order_relaxed);
         } else if (!use_polling) {
-            RPC_ADPT_VLOG_ERR("Unexpected EPOLLIN event through TCP\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Unexpected EPOLLIN event through TCP\n");
         }    
     }
 
@@ -2123,13 +2258,14 @@ public:
             cur_post_rx_num = left_post_rx_num > POST_BATCH_MAX ? POST_BATCH_MAX : left_post_rx_num;
             umq_buf_t *rx_buf_list = umq_buf_alloc(BrpcIOBufSize(), cur_post_rx_num, UMQ_INVALID_HANDLE, &option);
             if (rx_buf_list == nullptr) {
-                RPC_ADPT_VLOG_ERR("Failed to allocate RX buffer, RX depth: %u\n", m_rx_window_capacity);
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to allocate RX buffer, RX depth: %u\n",
+                                  m_rx_window_capacity);
                 return -1;
             }
 
             umq_buf_t *bad_qbuf = nullptr;
             if (umq_post(umq_handle, rx_buf_list, UMQ_IO_RX, &bad_qbuf) != UMQ_SUCCESS) {
-                RPC_ADPT_VLOG_ERR("Failed to post RX buffer, RX depth: %u\n", m_rx_window_capacity);
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to post RX buffer, RX depth: %u\n", m_rx_window_capacity);
                 m_rx.m_window_size += HandleBadQBuf(rx_buf_list, bad_qbuf);
                 return -1;
             }
@@ -2147,7 +2283,8 @@ public:
         } while (poll_cnt++ < WAIT_UMQ_READY_ROUND);
 
         if (umq_state_get(m_local_umqh) != QUEUE_STATE_READY) {
-            RPC_ADPT_VLOG_ERR("Wait umq to be ready failed, umq state %d\n", umq_state_get(m_local_umqh));
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Wait umq to be ready failed, umq state %d\n",
+                              umq_state_get(m_local_umqh));
             return -1;
         }
 
@@ -2295,7 +2432,7 @@ private:
 
         uint64_t main_umq = GetOrCreateMainUmq(cfg, localEid);
         if (main_umq == UMQ_INVALID_HANDLE) {
-            RPC_ADPT_VLOG_ERR("Failed to create main umq\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to create main umq\n");
             return UMQ_INVALID_HANDLE;
         }
 
@@ -2304,7 +2441,7 @@ private:
         cfg->umq_ctx = (uint64_t)m_fd;
         uint64_t sub_umq = umq_create(cfg);
         if (sub_umq == UMQ_INVALID_HANDLE) {
-            RPC_ADPT_VLOG_ERR("Failed to create sub umq\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to create sub umq\n");
             return UMQ_INVALID_HANDLE;
         }
 
@@ -2323,7 +2460,7 @@ private:
         umq_dev_info_t umq_dev_info = {};
         int ret = umq_dev_info_get(dev_name, UMQ_TRANS_MODE_UB, &umq_dev_info);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to get device information\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get device information\n");
             return -1;
         }
 
@@ -2345,7 +2482,7 @@ private:
 
         Context *context = Context::GetContext();
         if (context->IsBonding() && connEid == nullptr){
-            RPC_ADPT_VLOG_ERR("Failed to use eid, because eid is null\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to use eid, because eid is null\n");
             return -1;
         }
         umq_create_option_t queue_cfg;
@@ -2365,7 +2502,7 @@ private:
 
         int n = snprintf_s(queue_cfg.name, UMQ_NAME_MAX_LEN, UMQ_NAME_MAX_LEN - 1, "fd: %d", m_fd);
         if ((((int)UMQ_NAME_MAX_LEN - 1) < n) || (n < 0)) {
-            RPC_ADPT_VLOG_ERR("Failed to set umq name\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to set umq name\n");
             return -1;
         }
 
@@ -2374,19 +2511,19 @@ private:
             if (context->IsDevIpv6()) {
                 queue_cfg.dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV6;
                 if (strcpy_s(queue_cfg.dev_info.ipv6.ip_addr, UMQ_IPV6_SIZE, context->GetDevIpStr()) != EOK) {
-                    RPC_ADPT_VLOG_ERR("Failed to strcpy_s device ipv6 address\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to strcpy_s device ipv6 address\n");
                     return -1;
                 } 
             } else {
                 queue_cfg.dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV4;
                 if (strcpy_s(queue_cfg.dev_info.ipv4.ip_addr, UMQ_IPV4_SIZE, context->GetDevIpStr()) != EOK) {
-                    RPC_ADPT_VLOG_ERR("Failed to strcpy_s device ipv4 address\n");
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to strcpy_s device ipv4 address\n");
                     return -1;
                 }     
             }
         } else if (context -> GetDevNameStr() != nullptr) {
             if (strcpy_s(queue_cfg.dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, context->GetDevNameStr()) != EOK) {
-                RPC_ADPT_VLOG_ERR("Failed to strcpy_s device name\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to strcpy_s device name\n");
                 return -1;
             }
             if(!context->IsBonding()){
@@ -2405,7 +2542,7 @@ private:
             }
         } else {
             if (strcpy_s(queue_cfg.dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, "bonding_dev_0") != EOK) {
-                RPC_ADPT_VLOG_ERR("Failed to strcpy_s device name\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to strcpy_s device name\n");
                 return -1;
             }
             if (context->IsBonding()) {
@@ -2431,7 +2568,7 @@ private:
  	 
         m_local_umqh = CreateSubUmq(&queue_cfg, &localEid);
         if (m_local_umqh == UMQ_INVALID_HANDLE) {
-            RPC_ADPT_VLOG_ERR("Failed to execute umq_create failed\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to execute umq_create failed\n");
             return RETRY_NEEDED;
         }
 
@@ -2550,14 +2687,16 @@ private:
         ub_trans_mode remoteTransMode;
         if (RecvSocketData(new_fd, &remoteTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
             != sizeof(ub_trans_mode)) {
-            RPC_ADPT_VLOG_ERR("Failed to receive remote TransMode message in accept, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive remote TransMode message in accept, fd: %d\n",
+                              new_fd);
             return -1;
         }
 
         ub_trans_mode localTransMode = context->GetUbTransMode();
         if (SendSocketData(new_fd, &localTransMode, sizeof(ub_trans_mode), CONTROL_PLANE_TIMEOUT_MS)
             != sizeof(ub_trans_mode)) {
-            RPC_ADPT_VLOG_ERR("Failed to send local TransMode message in connect, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send local TransMode message in connect, fd: %d\n",
+                              new_fd);
             return -1;
         }
 
@@ -2581,30 +2720,32 @@ private:
 
         if (RecvSocketData(
             new_fd, &remoteEid, sizeof(umq_eid_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_eid_t)) {
-            RPC_ADPT_VLOG_ERR("Failed to receive remote eid message in accept, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive remote eid message in accept, fd: %d\n", new_fd);
             return -1;
         }
 
         umq_eid_t localEid = context->GetDevSrcEid();
         if (SendSocketData(new_fd, &localEid, sizeof(umq_eid_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_eid_t)) {
-            RPC_ADPT_VLOG_ERR("Failed to send local eid message in accept, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send local eid message in accept, fd: %d\n", new_fd);
             return -1;
         }
 
+        // 保存对端EID
+        m_peer_info.peer_eid = remoteEid;
         connEid = context->GetDevSrcEid();
         if (localEid != remoteEid) {
             dev_schedule_policy schedulePolicy = context->GetDevSchedulePolicy();
             if (SendSocketData(new_fd, &schedulePolicy, sizeof(dev_schedule_policy), CONTROL_PLANE_TIMEOUT_MS) !=
                 sizeof(dev_schedule_policy)) {
-                RPC_ADPT_VLOG_ERR("Failed to send schedule policy in accept, fd: %d\n", new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send schedule policy in accept, fd: %d\n", new_fd);
                 return -1;
             }
 
             dev_schedule_policy peerSchedulePolicy;
             if (RecvSocketData(new_fd, &peerSchedulePolicy, sizeof(dev_schedule_policy), CONTROL_PLANE_TIMEOUT_MS) !=
                 sizeof(dev_schedule_policy)) {
-                    RPC_ADPT_VLOG_ERR("Failed to receive remote socket id in accept, fd: %d\n", new_fd);
-                    return -1;
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive remote socket id in accept, fd: %d\n", new_fd);
+                return -1;
             }
 
             bool useRoundRobin = true;
@@ -2614,22 +2755,24 @@ private:
                 // 亲和策略需要接收socketId
                 if (RecvSocketData(
                     new_fd, &mPeerSocketId, sizeof(int), CONTROL_PLANE_TIMEOUT_MS) != sizeof(int)) {
-                    RPC_ADPT_VLOG_ERR("Failed to receive remote socket id in accept, fd: %d\n", new_fd);
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive remote socket id in accept, fd: %d\n",
+                                      new_fd);
                     return -1;
                 }
             }
 
             if (DoRoute(&localEid, &remoteEid, &connRoute, useRoundRobin) != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to get route list in accept, fd: %d\n", new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get route list in accept, fd: %d\n", new_fd);
                 return -1;
             }
 
             if (SendSocketData(
                 new_fd, &connRoute, sizeof(umq_route_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_route_t)) {
-                RPC_ADPT_VLOG_ERR("Failed to send connect eid message in accept, fd: %d\n", new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send connect eid message in accept, fd: %d\n", new_fd);
                 return -1;
             }
-
+            // 保存对端EID
+            m_peer_info.peer_eid = connRoute.dst;
             connEid = connRoute.src;
         }
 
@@ -2655,21 +2798,21 @@ private:
 
         int ret = socket_fd_obj->CreateLocalUmq(&connEid);
         if ((ret < 0) || (ret == RETRY_NEEDED)) {
-            RPC_ADPT_VLOG_ERR("Failed to create umq\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to create umq\n");
             return ret;
         }
 
         local_cp_msg.queue_bind_info_size = umq_bind_info_get(
             socket_fd_obj->GetLocalUmqHandle(), local_cp_msg.queue_bind_info, sizeof(local_cp_msg.queue_bind_info));
         if (local_cp_msg.queue_bind_info_size == 0) {
-            RPC_ADPT_VLOG_ERR("Failed to execute umq_bind_info_get\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to execute umq_bind_info_get\n");
             return RETRY_NEEDED;
         }
         
         size_t len = sizeof(remote_cp_msg) - sizeof(uint64_t);
         if (RecvSocketData(
             new_fd, &remote_cp_msg.queue_bind_info_size, len, CONTROL_PLANE_TIMEOUT_MS) != (ssize_t)len) {
-            RPC_ADPT_VLOG_ERR("Failed to receive remote control message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive remote control message, fd: %d\n", new_fd);
             return -1;
         }
         RPC_ADPT_VLOG_DEBUG("recv remote control message, fd: %d, cp msg len: %d, bind info len: %d\n",
@@ -2677,7 +2820,7 @@ private:
 
         if (SendSocketData(
             new_fd, &local_cp_msg, sizeof(local_cp_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(local_cp_msg)) {
-            RPC_ADPT_VLOG_ERR("Failed to send local control message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send local control message, fd: %d\n", new_fd);
             return -1;
         }
         RPC_ADPT_VLOG_DEBUG("send local control message, fd: %d, cp msg len: %d, bind info len: %d\n",
@@ -2685,27 +2828,27 @@ private:
         
         if (umq_bind(socket_fd_obj->GetLocalUmqHandle(), remote_cp_msg.queue_bind_info,
             remote_cp_msg.queue_bind_info_size) != UMQ_SUCCESS) {
-            RPC_ADPT_VLOG_ERR("Failed to execute umq_bind\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq_bind\n");
             return RETRY_NEEDED;
         }
         socket_fd_obj->SetBindRemote(true);
 
         // 1650 RC mode not support post rx right after create jetty, thus, move post rx operation after bind()
         if (socket_fd_obj->PrefillRx() != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to fill rx buffer to umq, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to fill rx buffer to umq, fd: %d\n", new_fd);
             return -1;
         }
 
         if (SendSocketData(
             new_fd, send_sync_msg, sizeof(send_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(send_sync_msg)) {
-            RPC_ADPT_VLOG_ERR("Failed to send sync done message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send sync done message, fd: %d\n", new_fd);
             return -1;
         }
 
         if (RecvSocketData(
             new_fd, recv_sync_msg, sizeof(recv_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(recv_sync_msg) ||
             strcmp(recv_sync_msg, UMQ_BIND_SYNC_MSG) != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to receive sync done message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive sync done message, fd: %d\n", new_fd);
             return -1;
         }
 
@@ -2720,12 +2863,12 @@ private:
             socket_fd_obj = new SocketFd(new_fd, event_fd);
         } catch (std::exception& e) {
             OsAPiMgr::GetOriginApi()->close(event_fd);
-            RPC_ADPT_VLOG_ERR("%s\n", e.what());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
             return -1;
         }
 
         if (AcceptExchangeTransMode(new_fd) != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to exchange TransMode in accept\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to exchange TransMode in accept\n");
             delete socket_fd_obj;
             return -1;
         }
@@ -2734,7 +2877,9 @@ private:
         umq_eid_t peerBondingEid;
         umq_route_t connRoute;
         if (AcceptExchangeEid(new_fd, connEid, peerBondingEid, connRoute) != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to exchange eid in accept\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to exchange eid in accept,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
             delete socket_fd_obj;
             return -1;
         }
@@ -2742,7 +2887,8 @@ private:
         int ackRet = DoUbAccept(new_fd, connEid, socket_fd_obj);
         if (SendSocketData(
             new_fd, &ackRet, sizeof(int), CONTROL_PLANE_TIMEOUT_MS) != sizeof(int)) {
-            RPC_ADPT_VLOG_ERR("Failed to send ack ret, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send ack ret,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
             delete socket_fd_obj;
             return -1;
         }
@@ -2750,7 +2896,9 @@ private:
         int peerRet;
         if (RecvSocketData(
             new_fd, &peerRet, sizeof(int), CONTROL_PLANE_TIMEOUT_MS) != sizeof(int)) {
-            RPC_ADPT_VLOG_ERR("Failed to receive peer ack ret, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Failed to receive peer ack ret,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
             delete socket_fd_obj;
             return -1;
         }
@@ -2767,25 +2915,34 @@ private:
 
             umq_route_t otherConnRoute;
             if (CheckOtherRoute(otherConnRoute, peerBondingEid, connRoute) != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to get other route in retry, fd: %d\n", new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to get other route in retry,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                 delete socket_fd_obj;
                 return -1;
             }
             if (SendSocketData(
                 new_fd, &otherConnRoute, sizeof(umq_route_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_route_t)) {
-                RPC_ADPT_VLOG_ERR("Failed to send connect eid message in retry accept, fd: %d\n", new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to send connect eid message in retry accept,Peer eid:" EID_FMT
+                                  ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                 return -1;
             }
 
             ackRet = DoUbAccept(new_fd, otherConnRoute.src, socket_fd_obj);
             if (ackRet != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to get new connect in retry accept, fd: %d\n", new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to get new connect in retry accept,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                 delete socket_fd_obj;
                 return -1;
             }
         } else {
             if (ackRet != 0) {
-                RPC_ADPT_VLOG_ERR("Failed to get new connect in accept, fd: %d\n", new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                  "Failed to get new connect in accept,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                 delete socket_fd_obj;
                 return -1;
             }
@@ -2802,7 +2959,7 @@ private:
             Socket *sock = NULL;
             if (PollingEpoll::GetInstance().SocketCreate(&sock, new_fd, SocketType::SOCKET_TYPE_TCP_SERVER,
                                                          socket_fd_obj->GetLocalUmqHandle()) != 0) {
-                RPC_ADPT_VLOG_ERR("SocketCreate failed \n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SocketCreate failed \n");
             } else {
                 PollingEpoll::GetInstance().AddSocket(new_fd, sock);
             }
@@ -2861,7 +3018,8 @@ private:
         } while (cur_qbuf != nullptr && wr_first_buf != end_qbuf);
 
         if (wr_first_buf == nullptr) {
-            RPC_ADPT_VLOG_ERR("TX umq buffer list is in error, TX user context does not contain the right list\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "TX umq buffer list is in error, TX user context does not contain the right list\n");
             return -1;
         }
 
@@ -3059,7 +3217,8 @@ private:
             for (int i = 0; i < poll_cnt; i++) {
                 if (buf[i]->status == UMQ_FAKE_BUF_FC_UPDATE) {
                     if (eventfd_write(m_event_fd, 1) == -1) {
-                        RPC_ADPT_VLOG_ERR("write event fd %d failed, errno %d\n", m_event_fd, errno);
+                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd %d failed, errno %d\n", m_event_fd,
+                                          errno);
                     }
                 }
                 umq_buf_free(buf[i]);
@@ -3239,7 +3398,7 @@ private:
         mEidRegistry.RegisterOrReplaceEidIndex(*dstEid, startIndex);
 
         if (!found) {
-            RPC_ADPT_VLOG_ERR("Failed to find umq dev\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to find umq dev\n");
             return -1;
         }
 
@@ -3294,7 +3453,7 @@ private:
             }
         }
 
-        RPC_ADPT_VLOG_ERR("Failed to find umq dev\n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to find umq dev\n");
         return -1;
     }
 
@@ -3321,7 +3480,7 @@ private:
         trans_info.dev_info.eid.eid = connEid;
         int ret = umq_dev_add(&trans_info);
         if (ret != 0 && ret != -UMQ_ERR_EEXIST) {
-            RPC_ADPT_VLOG_ERR("Failed to add umq dev, ret %d\n",ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to add umq dev, ret %d\n", ret);
             return -1;
         } 
         
@@ -3332,13 +3491,13 @@ private:
     int CheckOtherRoute(umq_route_t &otherConnRoute, umq_eid_t &dstEid, umq_route_t &connRoute)
     {
         if (!mRouteListRegistry.IsRegisteredRouteList(dstEid)) {
-            RPC_ADPT_VLOG_ERR("Failed to check other route to connect\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to check other route to connect\n");
             return -1;
         }
 
         umq_route_list_t routeList = {};
         if (!mRouteListRegistry.GetRouteList(dstEid, routeList)) {
-            RPC_ADPT_VLOG_ERR("Failed to get route list in map\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get route list in map\n");
             return -1;
         }
 
@@ -3356,7 +3515,7 @@ private:
         }
 
         if (!found) {
-            RPC_ADPT_VLOG_ERR("Failed to find other route in map\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to find other route in map\n");
             return -1;
         }
 
@@ -3385,7 +3544,7 @@ private:
         umq_route_list_t route_list;
         int ret = umq_get_route_list(&route, UMQ_TRANS_MODE_UB, &route_list);
         if (ret!=0) {
-            RPC_ADPT_VLOG_ERR("Failed to get urma topo\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get urma topo\n");
             return -1;
         }
 
@@ -3398,7 +3557,7 @@ private:
         filteredList.len = filterNum;
 
         if (filteredList.len == 0) {
-            RPC_ADPT_VLOG_ERR("Failed to get urma topo is zero\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get urma topo is zero\n");
             return -1;
         }
 
@@ -3410,23 +3569,27 @@ private:
     {
         umq_route_list_t filteredList = {};
         if (GetDevRouteList(srcEid, dstEid, filteredList) != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to get dev route list\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get dev route list\n");
             return -1;
         }
 
         if (GetConnEid(filteredList, dstEid, connRoute, useRoundRobin)!=0) {
-            RPC_ADPT_VLOG_ERR("Failed to get connect eid\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get connect eid\n");
             return -1;
         }
 
         if (CheckDevAdd(connRoute->src) != 0) {
-            RPC_ADPT_VLOG_ERR("Failed to check dev add\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to check dev add\n");
             return -1;
         }
 
         return 0;
     }
-
+    struct PeerInfo {
+        std::string peer_ip;      // 对端IP地址
+        umq_eid_t peer_eid;      // 对端EID
+        int peer_fd;             // 对端socket fd
+    } m_peer_info;
     //common fields
     uint64_t m_local_umqh = UMQ_INVALID_HANDLE;
     uint64_t m_main_umqh = UMQ_INVALID_HANDLE;
@@ -3529,7 +3692,8 @@ public:
 
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_fd, &tmp_event);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Origin epoll control add event fd failed, epfd: %d, fd: %d\n", epoll_fd, m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add event fd failed, epfd: %d, fd: %d\n",
+                              epoll_fd, m_fd);
             return ret;
         }
 
@@ -3609,7 +3773,7 @@ public:
         }
 
         if (GetAndAckEvent() < 0) {
-            RPC_ADPT_VLOG_ERR("Get and ack sub umq failed, socket fd:%d \n", m_origin_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Get and ack sub umq failed, socket fd:%d \n", m_origin_fd);
             return -1;
         }
 
@@ -3916,7 +4080,7 @@ public:
     virtual ALWAYS_INLINE int EpollCtlAdd(int fd, struct epoll_event *event, bool use_polling = false) override
     {
         if (event == nullptr) {
-            RPC_ADPT_VLOG_ERR("Invalid argument, epoll event is NULL\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid argument, epoll event is NULL\n");
             errno = EINVAL;
             return -1;
         }
@@ -3927,7 +4091,7 @@ public:
         }
 
         if (m_epoll_event_map.count(fd) > 0) {
-            RPC_ADPT_VLOG_ERR("Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
             errno = EEXIST;
             return -1;
         }
@@ -3937,7 +4101,7 @@ public:
             epoll_event = new EpollEvent(fd, event);
             CreateAndAddShareJfrEpollEvent(fd, event);
         } catch (std::exception& e) {
-            RPC_ADPT_VLOG_ERR("%s\n", e.what());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
             return -1;
         }
 
@@ -3965,12 +4129,13 @@ public:
 
         int share_jfr_fd = GetShareJfrFd(fd);
         if (share_jfr_fd < 0) {
-            RPC_ADPT_VLOG_ERR("Get share jfr fd failed, epfd: %d, socket fd: %d\n", m_fd, fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Get share jfr fd failed, epfd: %d, socket fd: %d\n", m_fd, fd);
             return -1;
         }
 
         if (m_share_jfr_epoll_event_map.count(share_jfr_fd) == 0) {
-            RPC_ADPT_VLOG_ERR("Share jfr rx epoll event not exist, epfd: %d, socket fd: %d, share jfr fd:%d \n", m_fd,
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                              "Share jfr rx epoll event not exist, epfd: %d, socket fd: %d, share jfr fd:%d \n", m_fd,
                               fd, share_jfr_fd);
             return -1;
         }
@@ -3991,20 +4156,20 @@ private:
     {
         SocketFd *socket_fd_obj = (SocketFd *)Fd<::SocketFd>::GetFdObj(fd);
         if (socket_fd_obj == nullptr) {
-            RPC_ADPT_VLOG_ERR("Get socket fd object failed, socket fd: %d\n", fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Get socket fd object failed, socket fd: %d\n", fd);
             return -1;
         }
 
         auto main_umq = socket_fd_obj->GetMainUmqHandle();
         if (main_umq == UMQ_INVALID_HANDLE) {
-            RPC_ADPT_VLOG_ERR("Get main umq handle failed, socket fd: %d\n", fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Get main umq handle failed, socket fd: %d\n", fd);
             return -1;
         }
 
         umq_interrupt_option_t rx_option = {UMQ_INTERRUPT_FLAG_IO_DIRECTION, UMQ_IO_RX};
         int share_jfr_fd = umq_interrupt_fd_get(main_umq, &rx_option);
         if (share_jfr_fd < 0) {
-            RPC_ADPT_VLOG_ERR("Get main umq interrupt fd failed, socket fd: %d\n", fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Get main umq interrupt fd failed, socket fd: %d\n", fd);
             return -1;
         }
 

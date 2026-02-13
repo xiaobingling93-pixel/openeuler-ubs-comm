@@ -80,18 +80,18 @@ public:
     {
         int ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_set_extern_logger(UbsMemeLoggerPrint);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ub shmem set logger function failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ub shmem set logger function failed, ret %d.\n", ret);
             return -1;
         }
 
         ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_set_logger_level(static_cast<int>(m_config.shmLogLevel));
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ub shmem set logger level failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ub shmem set logger level failed, ret %d.\n", ret);
             return -1;
         }
 
         if (UNLIKELY(UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_local_nid_query(&m_nodeLocation) != 0)) {
-            RPC_ADPT_VLOG_ERR("Get local nid failed.\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Get local nid failed.\n");
             return -1;
         }
 
@@ -100,20 +100,20 @@ public:
         ubsmem_options_t options = {};
         ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_init_attributes(&options);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem init attributes failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem init attributes failed, ret %d.\n", ret);
             return -1;
         }
 
         ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_initialize(&options);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem initialize failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem initialize failed, ret %d.\n", ret);
             return -1;
         }
 
 
         ret = UbsMemShmRegionCreate();
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem shared region create failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem shared region create failed, ret %d.\n", ret);
             return -1;
         }
 
@@ -124,7 +124,7 @@ public:
     {
         int ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_finalize();
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem finalize failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem finalize failed, ret %d.\n", ret);
             return -1;
         }
 
@@ -140,17 +140,19 @@ public:
         if (ret == UBSM_ERR_ALREADY_EXIST) {
             ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_deallocate(shm->name);
             if (ret != 0) {
-                RPC_ADPT_VLOG_ERR("Ubsmem free origin shm name \"%s\" failed, ret %d.\n", shm->name, ret);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem free origin shm name \"%s\" failed, ret %d.\n", shm->name,
+                                  ret);
                 return -1;
             }
             RPC_ADPT_VLOG_INFO("Ubsmem free origin shm name \"%s\" success, try to recreate.\n");
             ret  = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_allocate(m_regionName, shm->name, shm->len, SHM_RIGHT_MODE, flag);
             if (ret != 0) {
-                RPC_ADPT_VLOG_ERR("Ubsmem recreate shm name \"%s\" failed, ret %d.\n", shm->name, ret);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem recreate shm name \"%s\" failed, ret %d.\n", shm->name,
+                                  ret);
                 return -1;
             }
         } else if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem create shm name \"%s\" failed, ret %d.\n", shm->name, ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem create shm name \"%s\" failed, ret %d.\n", shm->name, ret);
             return -1;
         }
 
@@ -162,7 +164,7 @@ public:
     int Free(Shm *shm)
     {
         if (shm->addr == nullptr) {
-            RPC_ADPT_VLOG_ERR("Ubsmem free input params is invalid, shm->addr is nullptr.\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem free input params is invalid, shm->addr is nullptr.\n");
             return -1;
         }
 
@@ -173,7 +175,7 @@ public:
             } else if (ret == static_cast<int>(UBSM_ERR_NOT_FOUND)) {
                 RPC_ADPT_VLOG_WARN("Ubsmem free shm name \"%s\" failed, ret %d, shm is not found.\n", shm->name, ret);
             } else {
-                RPC_ADPT_VLOG_ERR("Ubsmem free shm name \"%s\" failed, ret %d.\n", shm->name, ret);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem free shm name \"%s\" failed, ret %d.\n", shm->name, ret);
             }
             return ret;
         }
@@ -187,13 +189,13 @@ public:
     int Map(Shm *shm)
     {
         if (shm == nullptr) {
-            RPC_ADPT_VLOG_ERR("Ubsmem map input params is invalid, shm is nullptr.\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem map input params is invalid, shm is nullptr.\n");
             return -1;
         }
 
         int ret  = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_map(NULL, shm->len, PORT_READ | PORT_WRTIE, MAP_SHARED, shm->name, 0, (void**)&(shm->addr));
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem map shm name \"%s\" failed, ret %d.\n", shm->name, ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem map shm name \"%s\" failed, ret %d.\n", shm->name, ret);
             (void)UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_deallocate(shm->name);
             // TODO : Check ret=UBSM_ERR_NOT_FOUND
             return -1;
@@ -206,13 +208,14 @@ public:
     int Unmap(Shm *shm)
     {
         if (shm->addr == nullptr) {
-            RPC_ADPT_VLOG_ERR("Ubsmem unmap input params is invalid, shm->addr is nullptr.\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem unmap input params is invalid, shm->addr is nullptr.\n");
             return -1;
         }
 
         int ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_unmap(shm->addr, shm->len);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem unmap shm name \"%s\" , addr %p, len %llu, failed, ret %d.\n", shm->name, shm->addr, shm->len, ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem unmap shm name \"%s\" , addr %p, len %llu, failed, ret %d.\n",
+                              shm->name, shm->addr, shm->len, ret);
             // TODO : Check ret=UBSM_ERR_NET
             return -1;
         }
@@ -241,7 +244,7 @@ private:
         } else if (level == static_cast<int>(LogLevel::UBSM_LOG_WARN_LEVEL)) {
             RPC_ADPT_VLOG_WARN("%s\n", msg);
         } else {
-            RPC_ADPT_VLOG_ERR("%s\n", msg);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", msg);
         }
     
         return;
@@ -254,23 +257,24 @@ private:
         std::string nameStr = oss.str();
 
         if (nameStr.length() >= MAX_REGION_NAME_DESC_LENGTH) {
-            RPC_ADPT_VLOG_ERR("Create Region name: %s too loog.\n", nameStr.c_str());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Create Region name: %s too loog.\n", nameStr.c_str());
             return -1;
         }
 
         int ret = strcpy_s(m_regionName, MAX_REGION_NAME_DESC_LENGTH, nameStr.c_str());
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Region name strcpy_s failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Region name strcpy_s failed, ret %d.\n", ret);
             return -1;
         }
 
         ubsmem_regions_t regions = {0};
         ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_lookup_regions(&regions);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("ubsmem lookup share regions failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "ubsmem lookup share regions failed, ret %d.\n", ret);
             return -1;
         } else if (regions.region[0].host_num <= 0) {
-            RPC_ADPT_VLOG_ERR("ubsmem lookup share regions sucess, but first region host num %d.\n", regions.region[0].host_num);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "ubsmem lookup share regions sucess, but first region host num %d.\n",
+                              regions.region[0].host_num);
             return -1;           
         }
 
@@ -286,7 +290,7 @@ private:
         for (int i = 0; i < regionAttr.host_num && i < MAX_HOST_NUM; i++) {
             ret = strcpy_s(regionAttr.hosts[i].host_name, MAX_HOST_NAME_DESC_LENGTH, regions.region[0].hosts[i].host_name);
             if (ret != 0) {
-                RPC_ADPT_VLOG_ERR("Region's hostname strcpy_s failed, ret %d.\n", ret);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Region's hostname strcpy_s failed, ret %d.\n", ret);
             }
 
             regionAttr.hosts[i].affinity = (strcmp(regionAttr.hosts[i].host_name, hostname) == 0) ? true : false;
@@ -296,7 +300,7 @@ private:
         if (ret == UBSM_ERR_ALREADY_EXIST) {
             RPC_ADPT_VLOG_WARN("Ubsmem region exists, region name \"%s\"", m_regionName);
         } else if (ret != 0) {
-            RPC_ADPT_VLOG_ERR("Ubsmem create region failed, ret %d.\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem create region failed, ret %d.\n", ret);
             return -1;
         }
 

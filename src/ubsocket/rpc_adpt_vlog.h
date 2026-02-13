@@ -14,16 +14,16 @@
 
 #define ALWAYS_INLINE inline __attribute__((always_inline))
 
-#define RPC_ADPT_VLOG_ERR(__format, ...)  \
-  UTIL_VLOG(RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_ERR, __format, ##__VA_ARGS__)
+#define RPC_ADPT_VLOG_ERR(__error_type, __format, ...)  \
+  UTIL_VLOG(__error_type, RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_ERR, __format, ##__VA_ARGS__)
 #define RPC_ADPT_VLOG_WARN(__format, ...)  \
-  UTIL_VLOG(RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_WARN, __format, ##__VA_ARGS__)
+  UTIL_VLOG(ubsocket::UBSocket, RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_WARN, __format, ##__VA_ARGS__)
 #define RPC_ADPT_VLOG_NOTICE(__format, ...)  \
-  UTIL_VLOG(RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_NOTICE, __format, ##__VA_ARGS__)
+  UTIL_VLOG(ubsocket::UBSocket, RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_NOTICE, __format, ##__VA_ARGS__)
 #define RPC_ADPT_VLOG_INFO(__format, ...)  \
-  UTIL_VLOG(RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_INFO, __format, ##__VA_ARGS__)
+  UTIL_VLOG(ubsocket::UBSocket, RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_INFO, __format, ##__VA_ARGS__)
 #define RPC_ADPT_VLOG_DEBUG(__format, ...)  \
-  UTIL_VLOG(RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_DEBUG, __format, ##__VA_ARGS__)
+  UTIL_VLOG(ubsocket::UBSocket, RpcAdptGetLogCtx(), ubsocket::UTIL_VLOG_LEVEL_DEBUG, __format, ##__VA_ARGS__)
 
 ubsocket::util_vlog_ctx_t *RpcAdptGetLogCtx(void);
 
