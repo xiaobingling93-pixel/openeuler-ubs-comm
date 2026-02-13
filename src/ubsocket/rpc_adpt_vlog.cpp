@@ -15,7 +15,7 @@
 
 static ubsocket::util_vlog_ctx_t g_rpc_adpt_vlog_ctx = {
     ubsocket::UTIL_VLOG_LEVEL_INFO,
-    "RPC_ADPT",
+    "UBSOCKET",
     ubsocket::default_vlog_output,
     UTIL_VLOG_PRINT_PERIOD_MS,
     UTIL_VLOG_PRINT_TIMES,
