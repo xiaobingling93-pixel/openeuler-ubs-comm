@@ -16,14 +16,14 @@ typedef struct util_vlog_level_def {
     const char **alias_names;
 } util_vlog_level_def_t;
 
-static const char *g_emerg_alias_names_def[] = { "emerg", "emergency", "0", NULL };
-static const char *g_alert_alias_names_def[] = { "alert", "1", NULL };
-static const char *g_crit_alias_names_def[] = { "crit", "critical", "2", NULL };
-static const char *g_err_alias_names_def[] = { "err", "error", "3", NULL };
-static const char *g_warn_alias_names_def[] = { "warn", "warning", "4", NULL };
-static const char *g_notice_alias_names_def[] = { "notice", "5", NULL };
-static const char *g_info_alias_names_def[] = { "info", "informational", "6", NULL };
-static const char *g_debug_alias_names_def[] = { "debug", "7", NULL };
+static const char *g_emerg_alias_names_def[] = { nullptr };
+static const char *g_alert_alias_names_def[] = { nullptr };
+static const char *g_crit_alias_names_def[] = { nullptr };
+static const char *g_err_alias_names_def[] = { "error", nullptr };
+static const char *g_warn_alias_names_def[] = { "warn", nullptr };
+static const char *g_notice_alias_names_def[] = { "notice", nullptr };
+static const char *g_info_alias_names_def[] = { "info", nullptr };
+static const char *g_debug_alias_names_def[] = { "debug", "7", nullptr };
 
 static const util_vlog_level_def_t g_util_vlog_level_def[] = {
     { "EMERG", g_emerg_alias_names_def },

@@ -135,8 +135,12 @@ class Context : public Brpc::ConfigSettings {
 
     void ResetBrpcAllocator()
     {
-        *m_alloc_addr = m_alloc_addr_origin;
-        *m_dealloc_addr = m_dealloc_addr_origin;
+        if (m_alloc_addr != nullptr) {
+            *m_alloc_addr = m_alloc_addr_origin;
+        }
+        if (m_dealloc_addr != nullptr) {
+            *m_dealloc_addr = m_dealloc_addr_origin;
+        }
     }
 
     Context() : Brpc::ConfigSettings()
@@ -147,8 +151,7 @@ class Context : public Brpc::ConfigSettings {
             return;
         }
 
-        char *env_ptr = getenv(ENV_VAR_USE_ZCOPY);
-        if (env_ptr == NULL) {
+        if (m_use_brpc_zcopy) {
             if(GetBrpcAllocSymStr() != nullptr && GetBrpcDeallocSymStr() != nullptr){
                 RecordApi(RTLD_DEFAULT, GetBrpcAllocSymStr(), m_alloc_addr);
                 RecordApi(RTLD_DEFAULT, GetBrpcDeallocSymStr(), m_dealloc_addr);
@@ -172,7 +175,6 @@ class Context : public Brpc::ConfigSettings {
             RecordAndSetBrpcAllocator();
         }
 
-        int ret = -1;
 #ifdef UBS_SHM_BUILD_ENABLED
         ResetBrpcAllocator();
         SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
@@ -187,65 +189,38 @@ class Context : public Brpc::ConfigSettings {
         umq_config.trans_info_num = 1;
         umq_config.flow_control.use_atomic_window = true;
         umq_config.block_cfg.small_block_size = GetIOBlockType();
+        umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_DUMMY;
+        umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
+        umq_config.trans_info[0].trans_mode = GetTransMode();
 
-        const char *dev_info = nullptr;
-        if ((dev_info = GetDevIpStr()) != nullptr){
-            if(IsDevIpv6()){
-                umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
-                umq_config.trans_info[0].trans_mode = GetTransMode();
-                umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV6;
-                ret = sprintf_s(umq_config.trans_info[0].dev_info.ipv6.ip_addr, UMQ_IPV6_SIZE, "%s", dev_info);
-                if(ret < 0 || ret >= UMQ_IPV6_SIZE){
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s ipv6 address\n");
-                    ResetBrpcAllocator();
-                    SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
-                    return;
-                }
-            } else {
-                umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
-                umq_config.trans_info[0].trans_mode = GetTransMode();
-                umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_IPV4;
-                ret = sprintf_s(umq_config.trans_info[0].dev_info.ipv4.ip_addr, UMQ_IPV4_SIZE, "%s", dev_info);
-                if (ret < 0 || ret >= UMQ_IPV4_SIZE) {
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s ipv4 address\n");
-                    ResetBrpcAllocator();
-                    SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
-                    return;
-                }
-            }
-        } else if ((dev_info = GetDevNameStr()) != nullptr) {
-            umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
-            umq_config.trans_info[0].trans_mode = GetTransMode();
-            ret = sprintf_s(umq_config.trans_info[0].dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, "%s", dev_info);
-            if (ret < 0 || ret >= UMQ_DEV_NAME_SIZE) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s device name\n");
-                ResetBrpcAllocator();
-                SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
-                return;
-            }
-            if (strstr(umq_config.trans_info[0].dev_info.dev.dev_name, "bonding_dev") == nullptr) {
-                umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_DEV;
-                umq_config.trans_info[0].dev_info.dev.eid_idx = GetEidIdx();
-            }else{
-                umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_EID;
-                umq_config.trans_info[0].dev_info.eid.eid = GetDevSrcEid();
-                isBonding = true;
-            }
+        int ret = umq_init(&umq_config);
+        if (ret != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq init\n");
+            ResetBrpcAllocator();
+            SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
+            return;
         }
 
-        if (GetDevIpStr() == nullptr && GetDevNameStr() == nullptr) {
-            umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
-            umq_config.trans_info[0].trans_mode = GetTransMode();
-            ret = sprintf_s(umq_config.trans_info[0].dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, "%s", "bonding_dev_0");
-            if (ret < 0 || ret >= UMQ_DEV_NAME_SIZE) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s device name\n");
+        umq_trans_mode_t transMode = GetTransMode();
+        switch (transMode) {
+            case UMQ_TRANS_MODE_IB:
+                ret = AddIbDev(umq_config.trans_info[0]);
+                break;
+            case UMQ_TRANS_MODE_UB:
+                ret = AddUbDev(umq_config.trans_info[0]);
+                break;
+            default:
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Un-supported protocol.\n");
                 ResetBrpcAllocator();
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;
-            }
-            umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_DEV;
-            umq_config.trans_info[0].dev_info.dev.eid_idx = GetEidIdx();
-            isBonding = true;
+        }
+
+        if (ret != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq init\n");
+            ResetBrpcAllocator();
+            SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
+            return;
         }
 
         if (GetDevSchedulePolicy() == dev_schedule_policy::CPU_AFFINITY) {
@@ -253,39 +228,6 @@ class Context : public Brpc::ConfigSettings {
             m_socket_ids = GetSocketIdsViaNumaSysfs();
             if (m_socket_ids.empty() || m_process_socket_id==-1) {
                 RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed get socket id in cpu affinity policy.\n");
-                ResetBrpcAllocator();
-                SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
-                return;
-            }
-        }
-
-        ret = umq_init(&umq_config);
-        if(ret != 0){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq init\n");
-            ResetBrpcAllocator();
-            SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
-            return;
-        }
-
-        if (GetDevIpStr() == nullptr && GetDevNameStr() == nullptr) {
-            umq_dev_info_t umq_dev_info = {};
-            char devName[] = "bonding_dev_0";
-            int infoGetRet = umq_dev_info_get(devName, UMQ_TRANS_MODE_UB, &umq_dev_info);
-            if (infoGetRet != 0) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get bonding device information\n");
-                ResetBrpcAllocator();
-                SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
-                return;
-            }
-            uint32_t i = 0;
-            for (; i < umq_dev_info.ub.eid_cnt; ++i) {
-                if (umq_dev_info.ub.eid_list[i].eid_index == GetEidIdx()) {
-                    m_src_eid = umq_dev_info.ub.eid_list[i].eid;
-                    break;
-                }
-            }
-            if (i == umq_dev_info.ub.eid_cnt) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to find bonding eid\n");
                 ResetBrpcAllocator();
                 SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
                 return;
@@ -333,6 +275,104 @@ class Context : public Brpc::ConfigSettings {
         }
 
         RPC_ADPT_VLOG_INFO("Context reclaimed successfully.\n");
+    }
+
+    int AddIbDev(umq_trans_info_t &trans_info)
+    {
+        const char *dev_info = GetDevIpStr();
+        if (dev_info == nullptr) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to use ib, beacuse ipv4/ipv6 address is null\n");
+            return -1;
+        }
+
+        trans_info.mem_cfg.total_size = GetIOTotalSize();
+        trans_info.trans_mode = UMQ_TRANS_MODE_IB;
+        trans_info.dev_info.assign_mode = IsDevIpv6() ? UMQ_DEV_ASSIGN_MODE_IPV6 : UMQ_DEV_ASSIGN_MODE_IPV4;
+        int addrSize = IsDevIpv6() ? UMQ_IPV6_SIZE : UMQ_IPV4_SIZE;
+        int ret = sprintf_s(trans_info.dev_info.ipv4.ip_addr, addrSize, "%s", dev_info);
+        if (ret < 0 || ret >= addrSize) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s ipv4/ipv6 address\n");
+            return -1;
+        }
+
+        ret = umq_dev_add(&trans_info);
+        if (ret != 0 && ret != -UMQ_ERR_EEXIST) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add umq dev, ret %d\n", ret);
+            return -1;
+        }
+        return 0;
+    }
+
+    int AddUbDev(umq_trans_info_t &trans_info)
+    {
+        const char *dev_info = GetDevNameStr();
+        if (dev_info == nullptr) {
+            if (FindDevName() != 0) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to find bonding dev, need active input.\n");
+                return -1;
+            }
+        }
+        dev_info = GetDevNameStr();
+        trans_info.mem_cfg.total_size = GetIOTotalSize();
+        trans_info.trans_mode = UMQ_TRANS_MODE_UB;
+        int ret = sprintf_s(trans_info.dev_info.dev.dev_name, UMQ_DEV_NAME_SIZE, "%s", dev_info);
+        if (ret < 0 || ret >= UMQ_DEV_NAME_SIZE) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s device name\n");
+            return -1;
+        }
+
+        if (strstr(trans_info.dev_info.dev.dev_name, "bonding_dev") == nullptr) {
+            trans_info.dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_DEV;
+            trans_info.dev_info.dev.eid_idx = GetEidIdx();
+        } else {
+            trans_info.dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_EID;
+            trans_info.dev_info.eid.eid = GetDevSrcEid();
+            isBonding = true;
+        }
+
+        ret = umq_dev_add(&trans_info);
+        if (ret != 0 && ret != -UMQ_ERR_EEXIST) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add umq dev, ret %d\n", ret);
+            return -1;
+        }
+        return 0;
+    }
+
+    int FindDevName()
+    {
+        umq_trans_mode_t transMode = UMQ_TRANS_MODE_UB;
+        int devCount = 0;
+        umq_dev_info_t *umqDevInfo = umq_dev_info_list_get(transMode, &devCount);
+        if (umqDevInfo == nullptr || devCount <= 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add umq dev info list get.\n");
+            return -1;
+        }
+
+        int index = 0;
+        int bondingIndex = -1;
+        for (; index < devCount; ++index) {
+            const char *name = umqDevInfo[index].dev_name;
+            if (strcmp(name, "bonding_dev_0") == 0) {
+                bondingIndex = index;
+                break;
+            }
+            if ((bondingIndex == -1) && (strstr(name, "bonding_dev_") != nullptr)) {
+                bondingIndex = index;
+            }
+        }
+        if ((bondingIndex == -1) || (bondingIndex > devCount) || (umqDevInfo[bondingIndex].ub.eid_cnt == 0)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to find bonding dev in the environment.\n");
+            return -1;
+        }
+        int ret = sprintf_s(m_dev_name_str, UMQ_DEV_NAME_SIZE, "%s", umqDevInfo[bondingIndex].dev_name);
+        if (ret < 0 || ret >= UMQ_DEV_NAME_SIZE) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to sprintf_s device name\n");
+            return -1;
+        }
+
+        m_src_eid = umqDevInfo[bondingIndex].ub.eid_list[0].eid;
+        umq_dev_info_list_free(transMode, umqDevInfo);
+        return 0;
     }
 
     // 解析cpulist字符串，例如0~24，返回0

@@ -105,27 +105,29 @@ RPC_ADPT_READV_UNLIMITED=true \
 
 | 名称                       | 含义                   | 取值范围                                                     | 默认值  | 必填                               |
 | :------------------------- | :--------------------- | :----------------------------------------------------------- | :------ |----------------------------------|
-| RPC_ADPT_TRANS_MODE        | 通信协议               | ub，ib                                                       | ub      | 否                                |
-| RPC_ADPT_DEV_NAME          | 设备名称               | 根据实际场景填写设备名称；例如，udma2或者bonding_dev_0       | NA      | 是，使用bonding设备时可以不填               |
-| RPC_ADPT_DEV_IP            | 设备名称               | 根据实际场景填写，支持ipv6和ipv4写法。`ub协议下不需要填写`   | NA      | 否                                |
-| RPC_ADPT_EID_IDX           | 使用普通设备的eid编号  | ub协议下，通过`urma_admin show`命令查询获得                  | 0       | `RPC_ADPT_DEV_NAME`为普通设备时必填      |
-| RPC_ADPT_SRC_EID           | 使用bonding设备的eid   | ub协议下，通过`urma_admin show`命令查询获得                  | NA      | `RPC_ADPT_DEV_NAME`为bonding设备时必填 |
-| RPC_ADPT_LOG_LEVEL         | 日志级别               | emerg，alert，crit，err，warn，notice，info，debug           | info    | 否                                |
-| RPC_ADPT_LOG_USE_PRINTF    | 是否将日志打印到前台   | 0，1                                                         | 0       | 否                                |
-| RPC_ADPT_TX_DEPTH          | 发送队列深度           | 最小值是2，设置上限由实际机器环境决定（根据命令`urma_admin show --whole`中`max_jfc_depth`与`max_jfs_depth`两者的最小值） | 1024     | 否                                |
-| RPC_ADPT_RX_DEPTH          | 接受队列深度           | 最小值是2，设置上限由实际机器环境决定（根据命令`urma_admin show --whole`中`max_jfc_depth`与`max_jfr_depth`两者的最小值） | 1024     | 否                                |
-| RPC_ADPT_READV_UNLIMITED   | 是否打开readv上报限制  | false，true                                                  | true   | 否                                |
-| RPC_ADPT_BLOCK_TYPE        | 内存池的最小分片       | default，small，medium，large                                | default | 否                                |
-| RPC_ADPT_POOL_INITIAL_SIZE | IO内存的总大小，单位MB | 应用按需配置                                                 | 1024    | 否                                |
-| RPC_ADPT_UB_FORCE | 是否强制使用UB协议加速TCP | 0：不强制用UB加速TCP 1：强制用UB加速TCP                                                | 0    | 否                                |
-| RPC_SCHEDULE_POLICY | 设置多平面负载分担策略 | affinity，rr                                                | affinity   | 否                                |
-| RPC_AUTO_FALLBACK_TCP | 协议不匹配时是否自动降级为TCP | 0, 1                                                | 1   | 否                                |
+| UBSOCKET_TRANS_MODE        | 通信协议               | ub，ib                                                       | ub      | 否                                |
+| UBSOCKET_DEV_NAME          | 设备名称               | 根据实际场景填写设备名称；例如，udma2或者bonding_dev_0       | NA      |  否 |
+| UBSOCKET_DEV_IP            | 设备名称               | 根据实际场景填写，支持ipv6和ipv4写法。`ub协议下不需要填写`   | bonding设备     | 否                                |
+| UBSOCKET_EID_IDX           | 使用普通设备的eid编号  | ub协议下，通过`urma_admin show`命令查询获得                  | 0       | `RPC_ADPT_DEV_NAME`为普通设备时必填      |
+| UBSOCKET_SRC_EID           | 使用bonding设备的eid   | ub协议下，通过`urma_admin show`命令查询获得                  | bonding设备eid| 否|
+| UBSOCKET_LOG_LEVEL         | 日志级别               | error，warn，notice，info，debug           | info    | 否                                |
+| UBSOCKET_LOG_USE_PRINTF    | 是否将日志打印到前台   | true，false                                                         | fasle      | 否                                |
+| UBSOCKET_TX_DEPTH          | 发送队列深度           | 最小值是2，设置上限由实际机器环境决定（根据命令`urma_admin show --whole`中`max_jfc_depth`与`max_jfs_depth`两者的最小值） | 1024     | 否                                |
+| UBSOCKET_RX_DEPTH          | 接受队列深度           | 最小值是2，设置上限由实际机器环境决定（根据命令`urma_admin show --whole`中`max_jfc_depth`与`max_jfr_depth`两者的最小值） | 1024     | 否                                |
+| UBSOCKET_READV_UNLIMITED   | 是否打开readv上报限制  | false，true                                                  | true   | 否                                |
+| UBSOCKET_BLOCK_TYPE        | 内存池的最小分片       | default，small，medium，large                                | default | 否                                |
+| UBSOCKET_POOL_INITIAL_SIZE | IO内存的总大小，单位MB | 应用按需配置                                                 | 1024    | 否                                |
+| UBSOCKET_USE_UB_FORCE | 是否强制使用UB协议加速TCP | 0：不强制用UB加速TCP 1：强制用UB加速TCP                                                | 0    | 否                                |
+| UBSOCKET_SCHEDULE_POLICY | 设置多平面负载分担策略 | affinity，rr                                                | affinity   | 否                                |
+| UBSOCKET_AUTO_FALLBACK_TCP | 协议不匹配时是否自动降级为TCP | false, true                                                | true  | 否                                |
 | UBSOCKET_TRACE_ENABLE      | 是否打开trace统计       | false, true                                                 | false    | 否                                |
 | UBSOCKET_TRACE_TIME        | 控制维测数据输出间隔（单位s）   | [1, 300]                                                    | 10       | 否                               |
 | UBSOCKET_TRACE_FILE_PATH   | 控制维测数据输出路径  | [1, 512]                                                    | /tmp/ubsocket/log | 否                        |
 | UBSOCKET_TRACE_FILE_SIZE   | 控制维测数据文件大小（MB）   | [1, 300]                                                   | 10 | 否                        |
-| RPC_ADPT_ENABLE_SHARE_JFR | 设置是否开启共享JFR | true, false                                                | false   | 否                                |
-| RPC_ADPT_SHARE_JFR_RX_QUEUE_DEPTH | 设置开启共享JFR后，每个Socket链接接收缓存队列深度 | 最小值是64，设置上限由实际机器环境决定                                                | 1024   | 否                                |
+| UBSOCKET_STATS_CLI | 是否启用trace cli功能 | true, false                                                | false   | 否                                |
+| UBSOCKET_ENABLE_SHARE_JFR | 设置是否开启共享JFR | false, true                                              | false   | 否                                |
+| UBSOCKET_SHARE_JFR_RX_QUEUE_DEPTH | 设置开启共享JFR后，每个Socket链接接收缓存队列深度 | 最小值是64，设置上限由实际机器环境决定                                                | 1024   | 否                                |
+| UBSOCKET_USE_BRPC_ZCOPY | 是否使用brpc zcopy函数 | false, true                                               | true   | 否                                |
 
 >  说明：
 >
