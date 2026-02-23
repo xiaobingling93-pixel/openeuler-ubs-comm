@@ -10,17 +10,20 @@
 #ifndef BRPC_CONFIGURE_SETTINGS
 #define BRPC_CONFIGURE_SETTINGS
 
+#include <sys/socket.h>
 #include "configure_settings.h"
 #include "../util_vlog.h"
 
 #define BRPC_SYM_STR_LEN_MAX       (128)
 #define DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH          (1024)
-#define ENV_VAR_BRPC_ALLOC_SYM     "RPC_ADPT_BRPC_ALLOC_SYM"
-#define ENV_VAR_BRPC_DEALLOC_SYM   "RPC_ADPT_BRPC_DEALLOC_SYM"
-#define ENV_VAR_READV_UNLIMITED    "RPC_ADPT_READV_UNLIMITED"
-#define ENV_VAR_USE_POLLING        "RPC_ADPT_USE_POLLING"
-#define ENV_VAR_ENABLE_SHARE_JFR   "RPC_ADPT_ENABLE_SHARE_JFR"
-#define ENV_VAR_SHARE_JFR_RX_QUEUE_DEPTH   "RPC_ADPT_SHARE_JFR_RX_QUEUE_DEPTH"
+#define ENV_VAR_BRPC_ALLOC_SYM     "UBSOCKET_BRPC_ALLOC_SYM"
+#define ENV_VAR_BRPC_DEALLOC_SYM   "UBSOCKET_BRPC_DEALLOC_SYM"
+#define ENV_VAR_READV_UNLIMITED    "UBSOCKET_READV_UNLIMITED"
+#define ENV_VAR_USE_POLLING        "UBSOCKET_USE_POLLING"
+#define ENV_VAR_ENABLE_SHARE_JFR   "UBSOCKET_ENABLE_SHARE_JFR"
+#define ENV_VAR_SHARE_JFR_RX_QUEUE_DEPTH   "UBSOCKET_SHARE_JFR_RX_QUEUE_DEPTH"
+#define ENV_VAR_AUTO_FALLBACK_TCP  "UBSOCKET_AUTO_FALLBACK_TCP"
+#define ENV_VAR_USE_UB_FORCE       "UBSOCKET_USE_UB_FORCE"
 
 namespace Brpc{
 
@@ -72,6 +75,20 @@ public:
       {
           return m_share_jfr_rx_queue_depth;
       }
+ 
+    bool AutoFallbackTCP()
+    {
+        return m_auto_fallback_tcp;
+    }
+
+    bool UseUB(int domain, int type)
+    {
+        bool isTCP = ((domain == AF_INET) || (domain == AF_INET6)) && (type == SOCK_STREAM);
+        if ((domain == AF_SMC) || (m_use_ub_force && isTCP)) {
+            return true;
+        }
+        return false;
+    }
 
       protected:
       int ParseEnvVars() override
@@ -95,20 +112,32 @@ public:
          }
 
          if (strlen(m_use_polling_str) > 0) {
-             m_use_polling = BoolVal::BoolConverter(m_use_polling_str);
-             RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_USE_POLLING, BoolVal::BoolConverter(m_use_polling),
-                                m_use_polling_str);
+            m_use_polling = BoolVal::BoolConverter(m_use_polling_str);
+            RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_USE_POLLING, BoolVal::BoolConverter(m_use_polling),
+            m_use_polling_str);
          }
+
+        if (strlen(m_auto_fallback_tcp_str) > 0) {
+            m_auto_fallback_tcp = BoolVal::BoolConverter(m_auto_fallback_tcp_str);
+        }
+        RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_AUTO_FALLBACK_TCP,
+            BoolVal::BoolConverter(m_auto_fallback_tcp),
+            strlen(m_auto_fallback_tcp_str) > 0 ? m_auto_fallback_tcp_str: "(null)");
+        if (strlen(m_use_ub_force_str) > 0) {
+            m_use_ub_force = BoolVal::BoolConverter(m_use_ub_force_str);
+        }      
+        RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_USE_UB_FORCE, BoolVal::BoolConverter(m_use_ub_force),
+            strlen(m_use_ub_force_str) > 0 ? m_use_ub_force_str:"(null)");
 #ifdef UBS_SHM_BUILD_ENABLED
              m_use_polling = true;
 #endif
 
          if (strlen(m_enable_share_jfr_str) > 0) {
-             m_enable_share_jfr = BoolVal::BoolConverter(m_enable_share_jfr_str);
-             RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_ENABLE_SHARE_JFR,
-                                BoolVal::BoolConverter(m_enable_share_jfr), m_enable_share_jfr_str);
+            m_enable_share_jfr = BoolVal::BoolConverter(m_enable_share_jfr_str);
+            RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_ENABLE_SHARE_JFR,
+                BoolVal::BoolConverter(m_enable_share_jfr), m_enable_share_jfr_str);
          }
-         return 0;
+        return 0;
       }
 
       void LoadEnvVars() override
@@ -130,6 +159,14 @@ public:
             ReadEnvVar(env_ptr, m_use_polling_str, sizeof(m_use_polling_str));
         }
 
+        if ((env_ptr = getenv(ENV_VAR_AUTO_FALLBACK_TCP)) != nullptr) {
+            ReadEnvVar(env_ptr, m_auto_fallback_tcp_str, sizeof(m_auto_fallback_tcp_str));
+        }
+
+        if ((env_ptr = getenv(ENV_VAR_USE_UB_FORCE)) != nullptr) {
+            ReadEnvVar(env_ptr, m_use_ub_force_str, sizeof(m_use_ub_force_str));
+        }
+
         if ((env_ptr = getenv(ENV_VAR_ENABLE_SHARE_JFR)) != nullptr) {
             ReadEnvVar(env_ptr, m_enable_share_jfr_str, sizeof(m_enable_share_jfr_str));
         }
@@ -148,6 +185,10 @@ public:
       bool m_readv_unlimited = true;
       char m_use_polling_str[BOOL_STR_LEN_MAX] = "";
       bool m_use_polling = false;
+      char m_auto_fallback_tcp_str[BOOL_STR_LEN_MAX] = "";
+      bool m_auto_fallback_tcp = true;
+      char m_use_ub_force_str[BOOL_STR_LEN_MAX] = "";
+      bool m_use_ub_force = false;
       char m_enable_share_jfr_str[BOOL_STR_LEN_MAX] = "";
       bool m_enable_share_jfr = false;
       uint64_t m_share_jfr_rx_queue_depth = DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH;

@@ -11,12 +11,12 @@
 
 namespace TransMode{
 
-static const char *g_trans_mode_ub[] = {"ub", "0", nullptr};
-static const char *g_trans_mode_ib[] = {"ib", "roce", "1",nullptr};
-static const char *g_trans_mode_ubmm[] = {"ubmm" , "3", nullptr};
-static const char *g_trans_mode_ub_plus[] = {"ub_plus", "4", nullptr};
-static const char *g_trans_mode_ib_plus[] = {"ib_plus", "5", nullptr};
-static const char *g_trans_mode_ubmm_plus[] = {"ubmm_plus", "6", nullptr};
+static const char *g_trans_mode_ub[] = {"ub", nullptr};
+static const char *g_trans_mode_ib[] = {"ib", nullptr};
+static const char *g_trans_mode_ubmm[] = {"ubmm", nullptr};
+static const char *g_trans_mode_ub_plus[] = {"ub_plus", nullptr};
+static const char *g_trans_mode_ib_plus[] = {"ib_plus", nullptr};
+static const char *g_trans_mode_ubmm_plus[] = {"ubmm_plus", nullptr};
 
 static const EnvStrConverter<umq_trans_mode_t>::EnvStrDef g_trans_mode_def[] = {
     {UMQ_TRANS_MODE_UB, "UB", g_trans_mode_ub},
@@ -86,6 +86,10 @@ ConfigSettings::socket_fd_trans_mode ConfigSettings::m_socket_fd_trans_mode = SO
 int ConfigSettings::ParseEnvVars()
 {
     m_log_level = ubsocket::util_vlog_level_converter_from_str(m_log_level_str, ubsocket::UTIL_VLOG_LEVEL_INFO);
+
+    if (strlen(m_log_use_printf_str) > 0) {
+        m_log_use_printf = BoolVal::BoolConverter(m_log_use_printf_str);
+    }
     if(m_log_use_printf){
         if (RpcAdptSetLogCtx(m_log_level) != UMQ_SUCCESS) {
             RPC_ADPT_VLOG_WARN(
@@ -96,7 +100,8 @@ int ConfigSettings::ParseEnvVars()
     RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_LOG_LEVEL,
                        ubsocket::util_vlog_level_converter_to_str(m_log_level),
                        strlen(m_log_level_str) > 0 ? m_log_level_str : "(null)");
-
+    RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_LOG_USE_PRINTF, BoolVal::BoolConverter(m_log_use_printf),
+        strlen(m_log_use_printf_str) > 0 ? m_log_use_printf_str : "(null)");
     m_trans_mode = TransMode::TransModeConverter(m_trans_mode_str);
     RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_TRANS_MODE, TransMode::TransModeConverter(m_trans_mode),
                        strlen(m_trans_mode_str) > 0 ? m_trans_mode_str : "(null)");
@@ -136,9 +141,15 @@ int ConfigSettings::ParseEnvVars()
     RPC_ADPT_VLOG_INFO("%s: %s\n", ENV_VAR_BLOCK_TYPE, GetIOBlockTypeStr());
     RPC_ADPT_VLOG_INFO("%s: %lu\n", ENV_VAR_POOL_INITIAL_SIZE, m_io_total_size);
 
-    if(strlen(m_stats_str) > 0){
+    if (strlen(m_stats_str) > 0) {
         m_stats_enable = BoolVal::BoolConverter(m_stats_str);
         RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_STATS, BoolVal::BoolConverter(m_stats_enable), m_stats_str);
+    }
+
+    if (strlen(m_use_brpc_zcopy_str) > 0) {
+        m_use_brpc_zcopy = BoolVal::BoolConverter(m_use_brpc_zcopy_str);
+        RPC_ADPT_VLOG_INFO("%s: %s (input: %s)\n", ENV_VAR_USE_ZCOPY, BoolVal::BoolConverter(m_use_brpc_zcopy),
+            m_use_brpc_zcopy_str);
     }
 
     return 0;

@@ -8,9 +8,9 @@ class BrpcConnectAdapterTest : public testing::Test {
 public:
     void SetUp() override
     {
-        setenv("RPC_ADPT_USE_ZCOPY", "true", 1);
-        setenv("RPC_ADPT_UB_FORCE", "1", 1);
-        setenv("RPC_ADPT_TRANS_MODE", "UB", 1);
+        setenv("UBSOCKET_USE_BRPC_ZCOPY", "false", 1);
+        setenv("UBSOCKET_USE_UB_FORCE", "true", 1);
+        setenv("UBSOCKET_TRANS_MODE", "UB", 1);
         RpcAdptSetLogCtx(ubsocket::UTIL_VLOG_LEVEL_INFO);
         int fd = 1;
         uint64_t magicNumber = 10;
@@ -21,9 +21,9 @@ public:
 
     void TearDown() override
     {
-        unsetenv("RPC_ADPT_USE_ZCOPY");
-        unsetenv("RPC_ADPT_UB_FORCE");
-        unsetenv("RPC_ADPT_TRANS_MODE");
+        unsetenv("UBSOCKET_USE_BRPC_ZCOPY");
+        unsetenv("UBSOCKET_USE_UB_FORCE");
+        unsetenv("UBSOCKET_TRANS_MODE");
         if (socketfd != nullptr) {
             delete socketfd;
             socketfd = nullptr;
@@ -123,10 +123,19 @@ TEST_F(BrpcConnectAdapterTest, TestAcceptFailed)
     GlobalMockObject::verify();
 }
 
+void MockAsyncEventProcess(umq_init_cfg_t cfg)
+{
+        return;
+}
+
 TEST_F(BrpcConnectAdapterTest, TestAcceptSucceed)
 {
+    setenv("UBSOCKET_TRANS_MODE", "ubmm", 1);
     struct sockaddr *address = nullptr;
     socklen_t *address_len = nullptr;
+    MOCKER_CPP(umq_init)
+            .stubs()
+            .will(returnValue(int(0)));
     MOCKER_CPP(&OsAPiMgr::accept)
             .stubs()
             .will(returnValue(int(0)));
@@ -138,5 +147,6 @@ TEST_F(BrpcConnectAdapterTest, TestAcceptSucceed)
             .will(returnValue(int(0)));
     int ret = socketfd->Accept(address, address_len);
     EXPECT_EQ(ret, 0);
+    unsetenv("UBSOCKET_TRANS_MODE");
     GlobalMockObject::verify();
 }

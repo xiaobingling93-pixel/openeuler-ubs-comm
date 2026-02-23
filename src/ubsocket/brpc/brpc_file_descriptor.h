@@ -272,22 +272,6 @@ public:
         return m_main_umqh;
     }
 
-    ALWAYS_INLINE bool AutoFallbackTCP()
-    {
-        static bool enable = []() {
-            const char *env = std::getenv("RPC_AUTO_FALLBACK_TCP");
-            if (env == nullptr) {
-                return true;
-            }
-            std::string envStr(env);
-            if (envStr == "0") {
-                RPC_ADPT_VLOG_INFO("Forbidden auto fallback to tcp set\n");
-                return false;
-            }
-            return true;
-        }();
-        return enable;
-    }
     /**
      * @brief 从sockaddr结构体提取IP地址字符串
      * @param address 指向sockaddr结构体的指针
@@ -359,7 +343,8 @@ public:
         uint64_t magic_number = 0;
         ssize_t magic_number_recv_size = 0;
         int ret = ValidateMagicNumber(fd, magic_number, magic_number_recv_size);
-        if (ret > 0 && !AutoFallbackTCP()) {
+        Context *context = Context::GetContext();
+        if (ret > 0 && !context->AutoFallbackTCP()) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to accept as protocol dismatch,Peer IP:%s\n",
                               GetPeerIp().c_str());
             OsAPiMgr::GetOriginApi()->close(fd);

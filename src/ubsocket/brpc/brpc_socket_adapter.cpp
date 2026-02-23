@@ -15,32 +15,6 @@
 #include "ubs_mem/mem_file_descriptor.h"
 #include "ubs_mem/shm.h"
 
-static bool ForceUseUB()
-{
-    static bool enable = []() {
-        const char *env = std::getenv("RPC_ADPT_UB_FORCE");
-        if (env == nullptr) {
-            return false;
-        }
-        std::string envStr(env);
-        if (envStr == "1") {
-            RPC_ADPT_VLOG_INFO("RPC_ADPT_UB_FORCE is set force use ub acceleration");
-            return true;
-        }
-        return false;
-    }();
-    return enable;
-}
-
-static bool UseUB(int domain, int type)
-{
-    bool isTCP = ((domain == AF_INET) || (domain == AF_INET6)) && (type == SOCK_STREAM);
-    if ((domain == AF_SMC) || (ForceUseUB() && isTCP)) {
-        return true;
-    }
-    return false;
-}
-
 EXPOSE_C_DEFINE int socket(int domain, int type, int protocol)
 {
     int fd = -1;
@@ -49,14 +23,15 @@ EXPOSE_C_DEFINE int socket(int domain, int type, int protocol)
     } else {
         fd = OsAPiMgr::GetOriginApi()->socket(domain, type, protocol);
     }
-    if (!UseUB(domain, type) || fd < 0) {
-        return fd;
-    }
 
     /* The 'socket()' function is only called when constructing the 'Brpc::Context'singleton, so the
      * file descriptor (fd) is directly returned to avoid recursively constructing 'Brpc::Context'. */
     Brpc::Context *context = Brpc::Context::GetContext();
     if (context == nullptr) {
+        return fd;
+    }
+
+    if (!context->UseUB(domain, type) || fd < 0) {
         return fd;
     }
 

@@ -46,25 +46,25 @@
 #define LARGE_QBUF_BLOCK_TYPE     "large"   // 64k
 #define DEV_SCHEDULE_POLICY_CPU_AFFINITY  "affinity"  // cpu_affinity
 #define DEV_SCHEDULE_POLICY_ROUND_ROBIN   "rr"  // round_robin
-#define ENV_VAR_LOG_LEVEL         "RPC_ADPT_LOG_LEVEL"
-#define ENV_VAR_TRANS_MODE        "RPC_ADPT_TRANS_MODE"
-#define ENV_VAR_DEV_IP            "RPC_ADPT_DEV_IP"
-#define ENV_VAR_DEV_DEV_NAME      "RPC_ADPT_DEV_NAME"
-#define ENV_VAR_EID_IDX           "RPC_ADPT_EID_IDX"
-#define ENV_VAR_TX_DEPTH          "RPC_ADPT_TX_DEPTH"
-#define ENV_VAR_DEV_SRC_EID       "RPC_ADPT_SRC_EID"
-#define ENV_VAR_RX_DEPTH          "RPC_ADPT_RX_DEPTH"
-#define ENV_VAR_STATS             "RPC_ADPT_STATS"
-#define ENV_VAR_BLOCK_TYPE        "RPC_ADPT_BLOCK_TYPE"        // default, small, medium, large
-#define ENV_VAR_POOL_INITIAL_SIZE "RPC_ADPT_POOL_INITIAL_SIZE" // MB
-#define ENV_VAR_USE_ZCOPY         "RPC_ADPT_USE_ZCOPY"
-#define ENV_LOG_USE_PRINTF        "RPC_ADPT_LOG_USE_PRINTF" // default 0, 0 false; 1 true
-#define ENV_SCHEDULE_POLICY       "RPC_SCHEDULE_POLICY" // affinity, rr
+#define ENV_VAR_LOG_LEVEL         "UBSOCKET_LOG_LEVEL"
+#define ENV_VAR_TRANS_MODE        "UBSOCKET_TRANS_MODE"
+#define ENV_VAR_DEV_IP            "UBSOCKET_DEV_IP"
+#define ENV_VAR_DEV_DEV_NAME      "UBSOCKET_DEV_NAME"
+#define ENV_VAR_EID_IDX           "UBSOCKET_EID_IDX"
+#define ENV_VAR_TX_DEPTH          "UBSOCKET_TX_DEPTH"
+#define ENV_VAR_DEV_SRC_EID       "UBSOCKET_SRC_EID"
+#define ENV_VAR_RX_DEPTH          "UBSOCKET_RX_DEPTH"
+#define ENV_VAR_STATS             "UBSOCKET_STATS_CLI"
+#define ENV_VAR_BLOCK_TYPE        "UBSOCKET_BLOCK_TYPE"        // default, small, medium, large
+#define ENV_VAR_POOL_INITIAL_SIZE "UBSOCKET_POOL_INITIAL_SIZE" // MB
+#define ENV_VAR_USE_ZCOPY         "UBSOCKET_USE_BRPC_ZCOPY"
+#define ENV_LOG_USE_PRINTF        "UBSOCKET_LOG_USE_PRINTF" // default 0, 0 false; 1 true
+#define ENV_SCHEDULE_POLICY       "UBSOCKET_SCHEDULE_POLICY" // affinity, rr
 #define ENV_TRACE_ENABLE          "UBSOCKET_TRACE_ENABLE"
 #define ENV_TRACE_TIME            "UBSOCKET_TRACE_TIME"
 #define ENV_TRACE_FILE_PATH       "UBSOCKET_TRACE_FILE_PATH"
 #define ENV_TRACE_FILE_SIZE       "UBSOCKET_TRACE_FILE_SIZE"
-#define ENV_UB_TRANS_MODE         "RPC_ADPT_UB_TRANS_MODE"
+#define ENV_UB_TRANS_MODE         "UBSOCKET_UB_TRANS_MODE"
 
 enum dev_schedule_policy {
     ROUND_ROBIN = 1,
@@ -300,8 +300,11 @@ protected:
     {
         char *env_ptr;
         if ((env_ptr = getenv(ENV_LOG_USE_PRINTF)) != NULL) {
-            uint32_t use_printf = static_cast<uint32_t>(atoi(env_ptr));
-            m_log_use_printf = use_printf != 0;
+            ReadEnvVar(env_ptr, m_log_use_printf_str, sizeof(m_stats_str));
+        }
+
+        if ((env_ptr = getenv(ENV_VAR_USE_ZCOPY)) != nullptr) {
+            ReadEnvVar(env_ptr, m_use_brpc_zcopy_str, sizeof(m_use_brpc_zcopy_str));
         }
 
         if((env_ptr = getenv(ENV_VAR_LOG_LEVEL)) != NULL){
@@ -448,7 +451,9 @@ protected:
     char m_trans_mode_str[TRANS_MODE_STR_LEN_MAX] = "";
     char m_dev_ip_str[IP_ADDR_STR_LEN_MAX] = "";
     char m_dev_name_str[DEV_NAME_STR_LEN_MAX] = "";
+    char m_log_use_printf_str[BOOL_STR_LEN_MAX] = "";
     char m_stats_str[BOOL_STR_LEN_MAX] = "";
+    char m_use_brpc_zcopy_str[BOOL_STR_LEN_MAX] = "";
     char m_block_type_str[BLOCK_TYPE_STR_LEN_MAX] = "";
     uint32_t m_eid_idx = DEFAULT_EID_IDX;
     char m_src_eid_str[BLOCK_TYPE_STR_LEN_MAX] = "";
@@ -471,6 +476,7 @@ protected:
     bool m_stats_enable = false;
     bool m_trace_enable = false;
     bool m_log_use_printf = false;
+    bool m_use_brpc_zcopy = true;
     dev_schedule_policy m_dev_schedule_policy = dev_schedule_policy::CPU_AFFINITY;
     ub_trans_mode m_ub_trans_mode = ub_trans_mode::RC_TP;
 };
