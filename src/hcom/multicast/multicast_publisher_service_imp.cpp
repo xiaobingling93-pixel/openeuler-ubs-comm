@@ -106,8 +106,8 @@ SerResult PublisherServiceImp::ServiceRequestReceived(const UBSHcomNetRequestCon
     }
 
     // ctx和msg都是thread local的变量，在线程销毁（即接收worker线程）的时候会被销毁
-    pubCtx->MarkReplied(subscriberInfo, ctx.Message());
-    if (pubCtx->GetReplyCount() < pubCtx->GetSendCount()) {
+    uint32_t repliedCount = pubCtx->MarkRepliedAndGetReplyCount(subscriberInfo, ctx.Message());
+    if (repliedCount < pubCtx->GetSendCount()) {
         return SER_OK;
     }
 
