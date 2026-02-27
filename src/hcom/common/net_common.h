@@ -24,11 +24,14 @@
 #include <thread>
 #include <unordered_map>
 #include <unistd.h>
+#include <regex>
+#include <arpa/inet.h>
 
 #include "net_crc32.h"
 #include "net_trace.h"
 #include "net_util.h"
 #include "securec.h"
+#include "uvs_api.h"
 
 namespace ock {
 namespace hcom {
@@ -306,6 +309,87 @@ public:
         return NN_OK;
     }
 
+    static inline bool NN_IsUrmaEid(const std::string &s)
+    {
+        static const std::regex re("^([0-9a-fA-F]{4}:){7}[0-9a-fA-F]{4}$");
+        bool isEid = std::regex_match(s, re);
+        if (isEid) {
+            NN_LOG_INFO("IP is Eid.");
+        }
+        return isEid;
+    }
+
+    static NResult NN_EidToStr(uvs_eid_t &eid, std::string &strEid)
+    {
+        struct in6_addr eidIn6{};
+        uint32_t size = sizeof(uint64_t); // size of uint64_t: 8
+        (void)memcpy(&eidIn6.s6_addr[0], &eid.in6.subnet_prefix, size);
+        (void)memcpy(&eidIn6.s6_addr[size], &eid.in6.interface_id, size);
+
+        strEid.resize(INET6_ADDRSTRLEN);
+        if (inet_ntop(AF_INET6, &eidIn6, &strEid[0], strEid.size()) == nullptr) {
+            NN_LOG_ERROR("Failed to convert eid to string");
+            return NN_INVALID_PARAM;
+        }
+        strEid.resize(strlen(strEid.c_str()));
+        NN_LOG_INFO("Convert eid to string success.");
+
+        return NN_OK;
+    }
+
+    static NResult NN_StrToEid(const std::string &strEid, uvs_eid_t &eid)
+    {
+        struct in6_addr eidIn6;
+        uint32_t size = sizeof(uint64_t); // size of uint64_t: 8
+        if (inet_pton(AF_INET6, strEid.c_str(), &eidIn6) != 1) {
+            NN_LOG_ERROR("Failed to convert eid to in6_addr");
+            return NN_INVALID_PARAM;
+        }
+
+        eid = {0};
+        (void)memcpy(&eid.in6.subnet_prefix, &eidIn6.s6_addr[0], size);
+        (void)memcpy(&eid.in6.interface_id, &eidIn6.s6_addr[size], size);
+        NN_LOG_INFO("Convert string to eid success.");
+
+        return NN_OK;
+    }
+
+    static NResult NN_GetPrimaryEid(const std::string &srcBondingEid, const std::string &dstBondingEid,
+        std::string &srcPrimaryEid, std::string &dstPrimaryEid)
+    {
+        NN_LOG_DEBUG("srcBondingEid: " << srcBondingEid << ", dstBondingEid: " << dstBondingEid);
+        uvs_route_t uvsRoute{};
+        uvs_route_list_t uvsRouteList = {0};
+
+        uvs_eid_t uSrcBondingEid = {0};
+        uvs_eid_t uDstBondingEid = {0};
+        NN_StrToEid(srcBondingEid, uSrcBondingEid);
+        NN_StrToEid(dstBondingEid, uDstBondingEid);
+        (void)memcpy(&uvsRoute.src, &uSrcBondingEid, sizeof(uvs_eid_t));
+        (void)memcpy(&uvsRoute.dst, &uDstBondingEid, sizeof(uvs_eid_t));
+
+        int ret = uvs_get_route_list(&uvsRoute, &uvsRouteList);
+        if (ret != 0) {
+            NN_LOG_ERROR("uvs_get_route_list failed, ret " << ret);
+            return NN_INVALID_PARAM;
+        }
+        if (uvsRouteList.len == 0) {
+            NN_LOG_WARN("uvs_get_route_list returned empty.");
+            return NN_INVALID_PARAM;
+        }
+
+        uvs_eid_t uSrcPrimaryEid = {0};
+        uvs_eid_t uDstPrimaryEid = {0};
+        (void)memcpy(&uSrcPrimaryEid, &uvsRouteList.buf[0].src, sizeof(uvs_eid_t));
+        (void)memcpy(&uDstPrimaryEid, &uvsRouteList.buf[0].dst, sizeof(uvs_eid_t));
+        NN_EidToStr(uSrcPrimaryEid, srcPrimaryEid);
+        NN_EidToStr(uDstPrimaryEid, dstPrimaryEid);
+
+        NN_LOG_DEBUG("srcPrimaryEid_0: " << srcPrimaryEid << ", dstPrimaryEid_0: " << dstPrimaryEid);
+
+        return NN_OK;
+    }
+
     static bool NN_ConvertIpAndPort(const std::string &url, std::string &ip, uint16_t &port)
     {
         if (NN_UNLIKELY(NN_ValidateUrl(url) != NN_OK)) {
@@ -318,7 +402,36 @@ public:
             NN_LOG_ERROR("invalid url: " << url << ", must be like 127.0.0.1:9981");
             return false;
         }
+        
+        // ipv6
+        size_t colonCount = std::count(url.begin(), url.end(), ':');
+        if (colonCount >= NN_NO2) {
+            if (colonCount > NN_NO8) {
+                NN_LOG_ERROR("Invalid IPv6 url, invalid num of ':'");
+                return false;
+            }
 
+            if (url[0] == '[') {
+                size_t closeBracket = url.find(']');
+                if (NN_UNLIKELY(closeBracket == std::string::npos)) {
+                    NN_LOG_ERROR("IPv6 address missing closing bracket ']'");
+                    return false;
+                }
+
+                ip = url.substr(1, closeBracket - 1);
+            } else {
+                ip = url.substr(0, url.rfind(':'));
+            }
+
+            port = std::strtoul(url.substr(url.rfind(':') + 1).c_str(), nullptr, NN_NO10);
+            if (NN_UNLIKELY(port == NN_NO0)) {
+                NN_LOG_ERROR("Invalid port, url:" << url);
+                return false;
+            }
+            return true;
+        }
+
+        // ipv4
         ip = url.substr(0, pos);
         port = std::strtoul(url.substr(pos + 1).c_str(), nullptr, NN_NO10);
         if (NN_UNLIKELY(port == NN_NO0)) {

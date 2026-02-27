@@ -2305,6 +2305,7 @@ protected:
     uint8_t mPeerDevIndex = 0;
     uint16_t mDevIndex = 0;
     uint8_t mBandWidth = 0;
+    std::string mEid;
     std::pair<uint16_t, uint16_t> mPortRange{0, 0};
 
     // hot used variables for start

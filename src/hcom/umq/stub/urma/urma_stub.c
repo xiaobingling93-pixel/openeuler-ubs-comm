@@ -51,3 +51,11 @@ double get_cpu_mhz(bool cpu_freq_warn) {
     double mhz = 2400.0;
     return mhz;
 }
+
+int uvs_set_topo_info(void *topo, uint32_t topo_num) {
+    return 0;
+}
+
+int uvs_get_route_list(const uvs_route_t *route, uvs_route_list_t *route_list) {
+    return 0;
+}

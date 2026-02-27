@@ -20,6 +20,7 @@
 #include "net_ub_driver_oob.h"
 #include "net_oob_secure.h"
 #include "ub_worker.h"
+#include "net_common.h"
 
 namespace ock {
 namespace hcom {
@@ -45,6 +46,18 @@ NResult NetDriverUBWithOob::DoInitialize()
     // create oob
     if (mStartOobSvr) {
         if (mOptions.oobType != NET_OOB_UB) {
+            // get route list
+            for (auto &lOpt : mOobListenOptions) {
+                std::string bondingEid = lOpt.Ip();
+                if (bondingEid.empty() || !NetFunc::NN_IsUrmaEid(bondingEid)) {
+                    continue;
+                }
+                std::string localPrimaryEid;
+                std::string remotePrimaryEid;
+                NetFunc::NN_GetPrimaryEid(bondingEid, bondingEid, localPrimaryEid, remotePrimaryEid);
+                lOpt.Ip(localPrimaryEid);
+            }
+ 	             
             result = CreateListeners(mOptions.enableMultiRail);
         } else {
             result = CreateUrmaListeners(mPublicJetty);
@@ -702,16 +715,28 @@ NResult NetDriverUBWithOob::Connect(const std::string &oobIp, uint16_t oobPort, 
     if ((flags & NET_EP_SELF_POLLING) || (flags & NET_EP_EVENT_POLLING)) {
         return ConnectSyncEp(oobIp, oobPort, payload, outEp, flags, serverGrpNo, ctx);
     }
+    std::string oobIpCopy = oobIp;
+    if (NetFunc::NN_IsUrmaEid(oobIp)) {
+        if (mEid.empty() || !NetFunc::NN_IsUrmaEid(mEid)) {
+            NN_LOG_ERROR("Failed to connect as driver not start or payload oversize");
+            return NN_ERROR;
+        }
+        std::string localPrimaryEid;
+        std::string remotePrimaryEid;
+        NetFunc::NN_GetPrimaryEid(mEid, oobIp, localPrimaryEid, remotePrimaryEid);
+
+        oobIpCopy = remotePrimaryEid;
+    }
 
     OOBTCPClientPtr tcpClient;
     if (mEnableTls) {
         tcpClient = new (std::nothrow)
-            OOBSSLClient(mOptions.oobType, oobIp, oobPort, mTlsPrivateKeyCB, mTlsCertCB, mTlsCaCallback);
+            OOBSSLClient(mOptions.oobType, oobIpCopy, oobPort, mTlsPrivateKeyCB, mTlsCertCB, mTlsCaCallback);
         NN_ASSERT_LOG_RETURN(tcpClient.Get() != nullptr, NN_NEW_OBJECT_FAILED)
         tcpClient.ToChild<OOBSSLClient>()->SetTlsOptions(mOptions);
         tcpClient.ToChild<OOBSSLClient>()->SetPSKCallback(mPskFindSessionCb, mPskUseSessionCb);
     } else {
-        tcpClient = new (std::nothrow) OOBTCPClient(mOptions.oobType, oobIp, oobPort);
+        tcpClient = new (std::nothrow) OOBTCPClient(mOptions.oobType, oobIpCopy, oobPort);
         NN_ASSERT_LOG_RETURN(tcpClient.Get() != nullptr, NN_NEW_OBJECT_FAILED)
     }
 
@@ -724,7 +749,7 @@ NResult NetDriverUBWithOob::Connect(const std::string &oobIp, uint16_t oobPort, 
     }
 
     NetLocalAutoDecreasePtr<OOBTCPConnection> autoDecPtr(conn);
-    conn->SetIpAndPort(oobIp, oobPort);
+    conn->SetIpAndPort(oobIpCopy, oobPort);
 
     if (mOptions.enableMultiRail) {
         ConnectHeader driverHeader;

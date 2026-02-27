@@ -189,6 +189,10 @@ set(HCOM_SRC_INCLUDE_PATH
     ${HCOM_SRC_DIR}/src/hcom/multicast/include
 )
 
+include_directories(/usr/include/ub/umdk/urma)
+link_directories(/usr/lib64)
+add_subdirectory(umq/stub/urma)
+
 file(GLOB_RECURSE HCOM *.cpp *.h)
 file(GLOB_RECURSE HCOM_JNI_SRCS "${HCOM_SRC_DIR}/src/hcom/api/java_sdk/*.cpp"
                                 "${HCOM_SRC_DIR}/src/hcom/api/java_sdk/*.h")
@@ -229,7 +233,7 @@ endif ()
 add_library(hcom_static_obj STATIC ${HCOM})
 target_link_libraries(hcom_static_obj
         -Wl,--start-group
-        pthread dl rt boundscheck
+        pthread dl rt boundscheck urma tpsa
         -Wl,--end-group)
 
 add_custom_command(
@@ -247,7 +251,7 @@ add_library(hcom SHARED ${HCOM})
 target_compile_options(hcom PUBLIC -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now)
 target_link_libraries(hcom
         -Wl,--start-group
-        pthread dl rt boundscheck
+        pthread dl rt boundscheck urma tpsa
         -Wl,--end-group)
 
 set_target_properties(hcom PROPERTIES
