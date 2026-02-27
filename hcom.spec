@@ -172,26 +172,26 @@ ln -s librpc_adapter_brpc.so.0     %{buildroot}%{_libdir}/librpc_adapter_brpc.so
 %{_prefix}/lib64/librpc_adapter_brpc.so.0.0.1
 
 %changelog
-* Fri Jan 23 2026 Qin Jiaqi <qinjiaqi6@h-partners.com> - 1.0.0-7
+* Fri Jan 23 2026 xxx <xxx@xxx.com> - 1.0.0-7
 - fix tar use noncom branch, update log.
 
-* Sat Jan 17 2026 Qin Jiaqi <qinjiaqi6@h-partners.com> - 1.0.0-6
+* Sat Jan 17 2026 xxx <xxx@xxx.com> - 1.0.0-6
 - Add ubsocket and umq.
 
-* Tue Jan 06 2026 Zhu Chenghao <zhuchenghao6@h-partners.com> - 1.0.0-5
+* Tue Jan 06 2026 xxx <xxx@xxx.com> - 1.0.0-5
 - Delete redundant logs and fix return.
 
-* Fri Dec 26 2025 Yan Zhihan <yanzhihan@huawei.com> - 1.0.0-3
+* Fri Dec 26 2025 xxx <xxx@xxx.com> - 1.0.0-3
 - Bugfix
 
-* Wed Dec 17 2025 Yan Zhihan <yanzhihan@huawei.com> - 1.0.0-2
+* Wed Dec 17 2025 xxx <xxx@xxx.com> - 1.0.0-2
 - Bugfix
 
-* Thu Nov 20 2025 Yan Zhihan <yanzhihan@huawei.com> - 1.0.0-1
+* Thu Nov 20 2025 xxx <xxx@xxx.com> - 1.0.0-1
 - Bugfix
 
-* Thu Nov 20 2025 Yan Zhihan <yanzhihan@huawei.com> - 1.0.0-1
+* Thu Nov 20 2025 xxx <xxx@xxx.com> - 1.0.0-1
 - Bugfix, update License
 
-* Thu Nov 20 2025 Yan Zhihan <yanzhihan@huawei.com> - 1.0.0-1
+* Thu Nov 20 2025 xxx <xxx@xxx.com> - 1.0.0-1
 - Package init
