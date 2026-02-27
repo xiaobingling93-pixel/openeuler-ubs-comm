@@ -248,35 +248,30 @@ public:
         for (const auto &sub : allSubs) {
             subscriberRspList.emplace_back(sub.second, SubscriberRspStatus::INIT);
         }
-        repliedCount = 0;
+        repliedCount.store(0, std::memory_order_relaxed);
         return SER_OK;
     }
 
-    inline void MarkReplied(SubscriptionInfoPtr &sub, UBSHcomNetMessage *message)
+    inline uint32_t MarkRepliedAndGetReplyCount(SubscriptionInfoPtr &sub, UBSHcomNetMessage *message)
     {
         SetResponseStatus(sub, message, SubscriberRspStatus::SUCCESS);
-        __sync_fetch_and_add(&repliedCount, 1);
-    }
-
-    inline uint32_t GetReplyCount() const
-    {
-        return repliedCount;
+        return repliedCount.fetch_add(1, std::memory_order_relaxed) + 1;
     }
 
     inline void SetSendCount(uint32_t count)
     {
-        sendCount = count;
+        sendCount.store(count, std::memory_order_relaxed);
     }
 
     inline uint32_t GetSendCount() const
     {
-        return sendCount;
+        return sendCount.load(std::memory_order_relaxed);
     }
 
 private:
     // 32 byte
-    uint32_t sendCount = 0;
-    uint32_t repliedCount = 0;
+    std::atomic<uint32_t> sendCount{0};
+    std::atomic<uint32_t> repliedCount{0};
     std::vector<SubscriberRspInfo> subscriberRspList;
     friend class PublisherService;
     friend class MultiCastPeriodicManager;
