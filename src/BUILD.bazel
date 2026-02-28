@@ -95,6 +95,27 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+cc_binary(
+    name = "ubstat",
+    srcs = glob([
+        "ubsocket/cli/*.cpp",
+    ]) + glob([  # 头文件现在也放在 srcs 里
+        "ubsocket/cli/*.h",
+    ]),
+    copts = [
+        "-D_GNU_SOURCE",
+        "-std=c++14",
+        "-fPIC"
+    ],
+    includes = [".", "ubsocket", "ubsocket/brpc", "ubsocket/cli"],
+    deps = [
+        ":boundscheck_lib",  # 依赖 boundscheck 库
+        "//src/hcom/umq:umq",
+        ":ubsocket"
+    ],
+    visibility = ["//visibility:public"],
+)
+
 load("//src/hcom/umq/bazel:copts.bzl", "UMQ_DEFAULT_STATIC_COPTS")
 
 cc_library(

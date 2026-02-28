@@ -63,16 +63,5 @@ private:
     bool mIstty = false;
     int mTerminalWidth = 120;
 };
-
-constexpr const char* TerminalDisplay::cursorHome;
-constexpr const char* TerminalDisplay::clearScreen;
-constexpr const char* TerminalDisplay::colorRed;
-constexpr const char* TerminalDisplay::colorGreen;
-constexpr const char* TerminalDisplay::colorBlue;
-constexpr const char* TerminalDisplay::colorYellow;
-constexpr const char* TerminalDisplay::colorGrey;
-constexpr const char* TerminalDisplay::colorBold;
-constexpr const char* TerminalDisplay::colorReset;
-constexpr const char* TerminalDisplay::underline;
 }
 #endif
