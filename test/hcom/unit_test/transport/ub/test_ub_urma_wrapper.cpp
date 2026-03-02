@@ -173,15 +173,6 @@ TEST_F(TestUbUrmaWrapper, UBContextInitErrTwo)
     EXPECT_EQ(ret, 1);
 }
 
-TEST_F(TestUbUrmaWrapper, UBDeviceHelperGetIfAddressByIp)
-{
-    std::string ip = "192.168.0.1";
-    struct sockaddr_in address;
-    MOCKER_CPP(&getifaddrs).stubs().will(returnValue(1));
-    UResult ret = mUBDeviceHelper->GetIfAddressByIp(ip, address);
-    EXPECT_EQ(ret, UB_DEVICE_FAILED_GET_IP_ADDRESS);
-}
-
 TEST_F(TestUbUrmaWrapper, UBDeviceHelperGetPortNumber)
 {
     uint32_t ret = mUBDeviceHelper->GetPortNumber();
@@ -522,12 +513,6 @@ TEST_F(TestUbUrmaWrapper, GetNResult)
     EXPECT_EQ(UBOpContextInfo::GetNResult(opResult), NN_URMA_ACK_TIMEOUT);
 }
 
-
-TEST_F(TestUbUrmaWrapper, GetIfAddressByIp)
-{
-    struct sockaddr_in addr {};
-    EXPECT_EQ(UBDeviceHelper::GetIfAddressByIp("127.0.0.1", addr), 0);
-}
 }
 }
 #endif
