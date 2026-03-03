@@ -112,9 +112,9 @@ struct ub_flow_control;
 struct ub_queue;
 typedef struct ub_flow_control_window_ops {
     // update tx window after receive IMM_TYPE_FLOW_CONTROL
-    uint16_t (*remote_rx_window_inc)(struct ub_flow_control *fc, uint16_t new_win);
+    uint16_t (*remote_rx_window_inc)(struct ub_flow_control *fc, uint16_t new_win, bool is_return_rollback);
     // alloc tx window, may return [0, required_win]
-    uint16_t (*remote_rx_window_dec)(struct ub_flow_control *fc, uint16_t required_win);
+    uint16_t (*remote_rx_window_dec)(struct ub_flow_control *fc, uint16_t required_win, bool is_return);
     // exchange current tx window to 0 and return current tx window
     uint16_t (*remote_rx_window_exchange)(struct ub_flow_control *fc);
     // load current tx window
@@ -157,10 +157,14 @@ typedef struct ub_flow_control {
     uint16_t credits_per_request;
     uint16_t initial_credit;
     uint16_t credit_request_threshold;
+    uint16_t return_ratio;
+    uint16_t min_reserved_credit;
+    uint16_t credit_multiple;
     uint16_t local_tx_depth;
     uint16_t local_rx_depth;
     uint16_t remote_tx_depth;
     uint16_t remote_rx_depth;
+    uint32_t timeout_us;
     bool local_set;
     bool remote_get;
     bool enabled;
@@ -273,7 +277,6 @@ typedef struct umq_ub_bind_info {
 } umq_ub_bind_info_t;
 
 typedef struct ub_bind_ctx {
-    umq_ub_bind_info_t bind_info;
     urma_target_jetty_t *tjetty[UB_QUEUE_JETTY_NUM];
     uint32_t remote_pid;
     char remote_namespace[UMQ_UB_NAMESPACE_SIZE];
@@ -336,6 +339,16 @@ typedef struct wait_ack_import {
     pthread_rwlock_t lock;
 } wait_ack_import_t;
 
+typedef struct ub_queue_idle_check {
+    urpc_list_t node;
+    struct ub_queue *umq;
+    volatile uint64_t last_send;
+    volatile uint64_t target_slot_id;
+    volatile bool need_return_credit;
+    int event_fd;
+    pthread_mutex_t lock;
+} ub_queue_idle_check_t;
+
 typedef struct ub_queue {
     urpc_list_t qctx_node;
     // queue param
@@ -381,6 +394,7 @@ typedef struct ub_queue {
     umq_buf_t *notify_buf;      // qbuf for manage message exchange, such as mem import/initial flow control window
     uint64_t umqh;
     uint64_t share_rq_umqh;
+    ub_queue_idle_check_t *checker;
 } ub_queue_t;
 
 typedef struct user_ctx {
@@ -479,8 +493,15 @@ umq_buf_t *umq_ub_read_ctx_create(ub_queue_t *queue, umq_imm_head_t *umq_imm_hea
 int umq_ub_plus_fill_wr_impl(umq_buf_t *qbuf, ub_queue_t *queue, urma_jfs_wr_t *urma_wr_ptr,
                              urma_sge_t *sges, uint32_t remain_tx);
 int umq_ub_dequeue_plus_with_poll_tx(ub_queue_t *queue, urma_cr_t *cr, umq_buf_t **buf, int return_rx_cnt);
-void fill_big_data_ref_sge(ub_queue_t *queue, ub_ref_sge_t *ref_sge,
-    umq_buf_t *buffer, ub_import_mempool_info_t *import_mempool_info, umq_imm_head_t *umq_imm_head);
+uint32_t umq_ub_ref_sge_cnt(umq_buf_t *buffer);
+
+typedef struct mempool_info_ctx {
+    ub_import_mempool_info_t *import_mempool_info;
+    umq_imm_head_t *umq_imm_head;
+    bool mempool_info_record[UMQ_MAX_TSEG_NUM];
+} mempool_info_ctx_t;
+
+void fill_big_data_ref_sge(ub_queue_t *queue, ub_ref_sge_t *ref_sge, umq_buf_t *buffer, mempool_info_ctx_t *ctx);
 void umq_ub_fill_rx_buffer(ub_queue_t *queue, int rx_cnt);
 int umq_ub_dequeue_with_poll_rx(ub_queue_t *queue, urma_cr_t *cr, umq_buf_t **buf);
 int umq_ub_dequeue_plus_with_poll_rx(uint64_t umqh_tp, urma_cr_t *cr, umq_buf_t **buf);
@@ -503,7 +524,7 @@ int umq_ub_poll_fc_tx(ub_queue_t *queue);
 int umq_ub_wait_rx_interrupt(ub_queue_t *queue, int time_out, urma_jfc_t *jfc[]);
 int umq_ub_wait_tx_interrupt(ub_queue_t *queue, int time_out, urma_jfc_t *jfc[]);
 int umq_flow_control_stats_get(uint64_t umqh_tp, umq_flow_control_stats_t *flow_control_stats);
-
+uint32_t umq_ub_timer_timeout_get(void);
 int umq_ub_queue_addr_list_alloc(ub_queue_t *queue);
 void umq_ub_queue_addr_list_record(umq_buf_t *addr_list, uint16_t msg_id, umq_buf_t *buf);
 umq_buf_t *umq_ub_queue_addr_list_remove(umq_buf_t *addr_list, uint16_t msg_id);
@@ -516,7 +537,7 @@ void umq_ub_dev_info_uninit(void);
 int umq_ub_dev_num_get(void);
 void umq_ub_dev_info_dump(umq_trans_mode_t umq_trans_mode, int num, umq_dev_info_t *out);
 int umq_ub_dev_info_dump_by_name(char *dev_name, umq_trans_mode_t umq_trans_mode, umq_dev_info_t *out);
-int umq_ub_dev_lookup_by_name(char *dev_name, uint32_t eid_idx, umq_ub_raw_dev_t *out);
+int umq_ub_dev_lookup_by_name(char *dev_name, uint32_t eid_index, umq_ub_raw_dev_t *out);
 int umq_ub_dev_lookup_by_eid(umq_eid_t *eid, umq_ub_raw_dev_t *out);
 int umq_ub_get_urma_dev(umq_dev_assign_t *dev_info, urma_device_t **urma_dev, umq_eid_t *eid, uint32_t *eid_index);
 umq_ub_ctx_t *umq_ub_get_ub_ctx_by_dev_info(umq_ub_ctx_t *ub_ctx_list, uint32_t ub_ctx_cnt, umq_dev_assign_t *dev_info);
