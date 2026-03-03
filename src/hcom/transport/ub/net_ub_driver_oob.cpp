@@ -716,8 +716,7 @@ NResult NetDriverUBWithOob::Connect(const std::string &oobIp, uint16_t oobPort, 
 
     std::string oobIpCopy = oobIp;
     if (NetFunc::NN_IsUrmaEid(oobIp)) {
-        if (mEid.empty()) { //|| !NetFunc::NN_IsUrmaEid(mEid)
-            NN_LOG_ERROR("Local eid: " << mEid );
+        if (mEid.empty()) {
             NN_LOG_ERROR("Failed to connect as driver not start or payload oversize");
             return NN_ERROR;
         }

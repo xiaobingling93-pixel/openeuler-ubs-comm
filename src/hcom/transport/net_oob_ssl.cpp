@@ -25,7 +25,7 @@
 
 namespace ock {
 namespace hcom {
-void OOBSSLServer::DealConnectInThread(int fd, struct sockaddr_in addressIn)
+void OOBSSLServer::DealConnectInThread(int fd, const sockaddr_storage &peerAddr, socklen_t peerLen)
 {
     ConnectResp resp = ConnectResp::OK;
     char ipStr[INET_ADDRSTRLEN] = {0};
@@ -74,11 +74,8 @@ void OOBSSLServer::RunInThread()
     }
 
     mThreadStarted.store(true);
-    struct sockaddr_in addressIn {};
-    socklen_t len = sizeof(addressIn);
 
     int flags = 1;
-
     auto maxRecvTimeout = NetFunc::NN_GetLongEnv("HCOM_CONNECTION_RECV_TIMEOUT_SEC", NN_NO1, NN_NO7200, NN_NO0);
     auto maxSendTimeout = NetFunc::NN_GetLongEnv("HCOM_CONNECTION_SEND_TIMEOUT_SEC", NN_NO1, NN_NO7200, NN_NO0);
 
@@ -109,12 +106,15 @@ void OOBSSLServer::RunInThread()
                 continue;
             }
 
-            bzero(&addressIn, sizeof(struct sockaddr_in));
-            auto fd = ::accept(mListenFD, reinterpret_cast<struct sockaddr *>(&addressIn), &len);
+            sockaddr_storage peerAddr {};
+            socklen_t peerLen = sizeof(peerAddr);
+
+            auto fd = ::accept(mListenFD, reinterpret_cast<struct sockaddr *>(&peerAddr), &peerLen);
             if (fd < 0) {
                 char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-                NN_LOG_WARN("Invalid to accept in oob ssl server on new socket with " <<
-                    NetFunc::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE) << ", ignore and continue");
+                NN_LOG_WARN("Invalid to accept on new socket with "
+                    << NetFunc::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE)
+                    << ", ignore and continue");
                 continue;
             }
 
@@ -124,14 +124,14 @@ void OOBSSLServer::RunInThread()
             /* set recv or send timeout */
             if (maxRecvTimeout != NN_NO0) {
                 struct timeval recvTimeout = { maxRecvTimeout, 0 };
-                setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &recvTimeout, sizeof(timeval));
+                setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &recvTimeout, sizeof(recvTimeout));
             }
             if (maxSendTimeout != NN_NO0) {
                 struct timeval sendTimeout = { maxSendTimeout, 0 };
-                setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, sizeof(timeval));
+                setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, sizeof(sendTimeout));
             }
 
-            DealConnectInThread(fd, addressIn);
+            DealConnectInThread(fd, peerAddr, peerLen);
         } catch (std::exception &ex) {
             NN_LOG_WARN("Got exception in OOBSSLServer::RunInThread, exception " << ex.what() <<
                 ", ignore and continue");
