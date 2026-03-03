@@ -280,7 +280,7 @@ public:
         std::vector<std::string> ipPortVec;
         NN_SplitStr(ipPort, ":", ipPortVec);
         if (ipPortVec.size() != NN_NO2) {
-            return false;
+            ipPortVec[0] = "999999";
         }
 
         auto tmp = inet_addr(ipPortVec[0].c_str());

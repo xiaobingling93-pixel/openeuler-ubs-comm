@@ -725,6 +725,7 @@ NResult NetDriverUBWithOob::Connect(const std::string &oobIp, uint16_t oobPort, 
         std::string remotePrimaryEid;
         NetFunc::NN_GetPrimaryEid(mEid, oobIp, localPrimaryEid, remotePrimaryEid);
         NN_LOG_DEBUG("Local primary eid: " << localPrimaryEid << ", Remote primary eid: " << remotePrimaryEid);
+        OOBTCPClient::mLocalEid = localPrimaryEid;
         oobIpCopy = remotePrimaryEid;
     }
 

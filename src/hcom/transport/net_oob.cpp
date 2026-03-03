@@ -1013,6 +1013,19 @@ NResult OOBTCPClient::ConnectWithFd(const std::string &ip, uint32_t port, int &f
     ConnectState state = ConnectState::DISCONNECTED;
     ConnectResp connectStatus = ConnectResp::OK;
 
+    if (family == AF_INET6) {
+        sockaddr_storage localAddrStorage {};
+        socklen_t localAddrLen = 0;
+        sockaddr_in6 localAddr6 {};
+
+        inet_pton(AF_INET6, mLocalEid.c_str(), &localAddr6.sin6_addr);
+        localAddr6.sin6_family = AF_INET6;
+        std::memcpy(&localAddrStorage, &localAddr6, sizeof(localAddr6));
+        localAddrLen = sizeof(localAddr6);
+
+        auto ret = ::bind(tmpFD, reinterpret_cast<struct sockaddr *>(&localAddrStorage), localAddrLen);
+    }
+
     while (timesRetried < maxConnRetryTimes) {
         switch (state) {
             case ConnectState::DISCONNECTED:

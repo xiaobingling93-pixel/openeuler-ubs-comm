@@ -370,6 +370,8 @@ public:
     {
         return mOobType;
     }
+    
+    inline static std::string mLocalEid = "";
 
     /*
      * @brief for tcp
