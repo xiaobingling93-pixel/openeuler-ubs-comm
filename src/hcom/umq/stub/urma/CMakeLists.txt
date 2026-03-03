@@ -3,6 +3,9 @@
 
 add_library(urma_stub SHARED urma_stub.c)
 target_include_directories(urma_stub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-add_library(urma ALIAS urma_stub)
-add_library(urma_common ALIAS urma_stub)
-add_library(tpsa ALIAS urma_stub)
+add_library(urma SHARED urma_stub.c)
+target_include_directories(urma PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(urma_common SHARED urma_stub.c)
+target_include_directories(urma_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(tpsa SHARED urma_stub.c)
+target_include_directories(tpsa PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

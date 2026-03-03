@@ -57,6 +57,7 @@ NResult NetDriverUBWithOob::DoInitialize()
                 NetFunc::NN_GetPrimaryEid(bondingEid, bondingEid, localPrimaryEid, remotePrimaryEid);
                 NN_LOG_DEBUG("Local primary eid: " << localPrimaryEid << ", Remote primary eid: " << remotePrimaryEid);
                 lOpt.Ip(localPrimaryEid);
+                NN_LOG_DEBUG("Local primary eid: " << lOpt.Ip());
             }
  	             
             result = CreateListeners(mOptions.enableMultiRail);
@@ -713,22 +714,24 @@ NResult NetDriverUBWithOob::Connect(const std::string &oobIp, uint16_t oobPort, 
         return ConnectByPublicJetty(oobIp, oobPort, payload, outEp, flags, serverGrpNo, clientGrpNo, ctx);
     }
 
-    if ((flags & NET_EP_SELF_POLLING) || (flags & NET_EP_EVENT_POLLING)) {
-        return ConnectSyncEp(oobIp, oobPort, payload, outEp, flags, serverGrpNo, ctx);
-    }
     std::string oobIpCopy = oobIp;
     if (NetFunc::NN_IsUrmaEid(oobIp)) {
-        if (mEid.empty() || !NetFunc::NN_IsUrmaEid(mEid)) {
+        if (mEid.empty()) { //|| !NetFunc::NN_IsUrmaEid(mEid)
+            NN_LOG_ERROR("Local eid: " << mEid );
             NN_LOG_ERROR("Failed to connect as driver not start or payload oversize");
             return NN_ERROR;
         }
         std::string localPrimaryEid;
         std::string remotePrimaryEid;
         NetFunc::NN_GetPrimaryEid(mEid, oobIp, localPrimaryEid, remotePrimaryEid);
-
+        NN_LOG_DEBUG("Local primary eid: " << localPrimaryEid << ", Remote primary eid: " << remotePrimaryEid);
         oobIpCopy = remotePrimaryEid;
     }
 
+    if ((flags & NET_EP_SELF_POLLING) || (flags & NET_EP_EVENT_POLLING)) {
+        return ConnectSyncEp(oobIpCopy, oobPort, payload, outEp, flags, serverGrpNo, ctx);
+    }
+    
     OOBTCPClientPtr tcpClient;
     if (mEnableTls) {
         tcpClient = new (std::nothrow)

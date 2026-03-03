@@ -208,11 +208,13 @@ NResult NetDriverUB::CreateContext()
         return result;
     }
     mContext = tmpCtx;
-    
-    uvs_eid_t eid{};
-    (void)memcpy(&eid, &tmpCtx->mBestEid.urmaEid, sizeof(urma_eid_t));
-    NetFunc::NN_EidToStr(eid, mEid);
 
+    uvs_eid_t eid{};
+    std::string strEid;
+    (void)memcpy(&eid, &tmpCtx->mBestEid.urmaEid, sizeof(urma_eid_t));
+    NetFunc::NN_EidToStr(eid, strEid);
+    mEid = strEid;
+    NN_LOG_DEBUG("UBContext created with best eid: " << mEid );
     return NN_OK;
 }
 

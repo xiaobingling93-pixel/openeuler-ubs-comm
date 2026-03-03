@@ -283,6 +283,7 @@ protected:
     NResult StartForUds();
 
     virtual void DealConnectInThread(int fd, struct sockaddr_in addressIn);
+    virtual void DealConnectInThreadIpv(int fd, const sockaddr_storage &peerAddr, socklen_t peerLen);
 
 protected:
     NetDriverOobType mOobType = NET_OOB_TCP;        /* listen type TCP or UDS */
@@ -513,13 +514,16 @@ public:
 
     void Run() override
     {
+        NN_LOG_INFO("ConnectCbTask::Run start, fd=" << mFd << " client=" << mClientIP << ":" << mClientPort);
         ConnectResp resp = ConnectResp::OK;
         if (::send(mFd, &resp, sizeof(ConnectResp), 0) <= 0) {
             char buf[NET_STR_ERROR_BUF_SIZE] = {0};
             NN_LOG_ERROR("Failed to send connect status to peer on oob @ " << mClientIP << ":" << mClientPort <<
                 ", as " << NetFunc::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
+                NN_LOG_WARN("ConnectCbTask::Run aborting after send error, fd=" << mFd);
             return;
         }
+        NN_LOG_INFO("ConnectCbTask::Run sent ConnectResp OK to " << mClientIP << ":" << mClientPort << " fd=" << mFd);
 
         // ConnectCbTask holds and is responsible for closing fd.
         // At the end of the execution, OOBTCPConnection returns fd to ConnectCbTask.
@@ -534,6 +538,7 @@ public:
             return;
         }
 
+        NN_LOG_INFO("ConnectCbTask::Run invoking new connection handler for fd=" << mFd << " client=" << mClientIP << ":" << mClientPort);
         auto startConnCb = NetMonotonic::TimeUs();
         auto result = mNewConnectionHandler(conn);
         if (result != 0) {
@@ -542,6 +547,7 @@ public:
                 result << " continue to accept future connection");
             return;
         }
+        NN_LOG_INFO("ConnectCbTask::Run handler succeeded for fd=" << mFd << " client=" << conn.GetIpAndPort());
         auto endConnCb = NetMonotonic::TimeUs();
         auto cbTime = endConnCb - startConnCb;
         if (NN_UNLIKELY(cbTime > MAX_CB_TIME_US)) {
@@ -549,6 +555,7 @@ public:
         }
         /* the socket could be transfer to real connection when type is socket */
         mFd = conn.TransferFd();
+        NN_LOG_INFO("ConnectCbTask::Run finished, final fd stored=" << mFd << " client=" << mClientIP << ":" << mClientPort);
     }
 
 protected:
