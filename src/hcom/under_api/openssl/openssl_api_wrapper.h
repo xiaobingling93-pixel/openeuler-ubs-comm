@@ -101,7 +101,6 @@ public:
 
     static inline int SslConnect(SSL *s)
     {
-        NN_LOG_INFO("test : ssl connect");
         return SSLAPI::sslConnect(s);
     }
 
