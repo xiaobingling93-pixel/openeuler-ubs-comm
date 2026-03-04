@@ -207,6 +207,10 @@ else()
     set(URMA_STUB_SHARED ON)
 endif()
 
+if(USE_URMA_STUB)
+    add_subdirectory(umq/stub/urma)
+endif()
+
 if(URMA_STUB_SHARED)
     message(STATUS "using URMA_STUB_SHARED: ${URMA_STUB_SHARED}")
     add_subdirectory(umq/stub/urma)
