@@ -282,7 +282,6 @@ protected:
 
     NResult StartForUds();
 
-    // virtual void DealConnectInThread(int fd, struct sockaddr_in addressIn);
     virtual void DealConnectInThread(int fd, const sockaddr_storage &peerAddr, socklen_t peerLen);
 
 protected:
