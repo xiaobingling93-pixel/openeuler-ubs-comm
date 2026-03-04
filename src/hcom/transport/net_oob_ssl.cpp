@@ -82,7 +82,7 @@ void OOBSSLServer::DealConnectInThread(int fd, const sockaddr_storage &peerAddr,
         if (::send(fd, &resp, sizeof(ConnectResp), 0) <= 0) {
             char buf[NET_STR_ERROR_BUF_SIZE] = {0};
             NN_LOG_ERROR("Failed to send connect status to peer on oob @ " << ipStr << ":" <<
-                ntohs(addressIn.sin_port) << ", as " << NetFunc::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
+                peerPort << ", as " << NetFunc::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
         }
     }
 }
