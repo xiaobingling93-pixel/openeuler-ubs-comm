@@ -80,7 +80,7 @@ private:
     uint8_t mPortNumber = 1;
     uint32_t mMaxJfs = 0;
     uint32_t mMaxJfr = 0;
-    int mMaxSge = NN_NO16; 
+    int mMaxSge = NN_NO16;
 
     DEFINE_RDMA_REF_COUNT_VARIABLE;
 

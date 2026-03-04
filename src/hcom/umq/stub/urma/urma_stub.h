@@ -45,10 +45,10 @@ typedef union uvs_eid {
 
 typedef union uvs_route_flag {
     struct {
-        uint32_t rtp: 1;
-        uint32_t ctp: 1;
-        uint32_t utp: 1;
-        uint32_t reserved: 29;
+        uint32_t rtp : 1;
+        uint32_t ctp : 1;
+        uint32_t utp : 1;
+        uint32_t reserved : 29;
     } bs;
     uint32_t value;
 } uvs_route_flag_t;

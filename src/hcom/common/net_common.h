@@ -375,8 +375,7 @@ public:
         }
         if (uvsRouteList.len == 0) {
             NN_LOG_WARN("uvs_get_route_list returned empty.");
-            // return NN_INVALID_PARAM;
-            NN_LOG_DEBUG("continue to try.");
+            return NN_INVALID_PARAM;
         }
 
         uvs_eid_t uSrcPrimaryEid = {0};

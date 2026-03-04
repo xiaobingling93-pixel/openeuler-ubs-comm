@@ -214,7 +214,7 @@ NResult NetDriverUB::CreateContext()
     (void)memcpy(&eid, &tmpCtx->mBestEid.urmaEid, sizeof(urma_eid_t));
     NetFunc::NN_EidToStr(eid, strEid);
     mEid = strEid;
-    NN_LOG_DEBUG("UBContext created with best eid: " << mEid );
+    NN_LOG_DEBUG("UBContext created with best eid: " << mEid);
     return NN_OK;
 }
 

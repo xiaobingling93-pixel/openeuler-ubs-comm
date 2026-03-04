@@ -55,7 +55,7 @@ void OOBSSLServer::DealConnectInThread(int fd, const sockaddr_storage &peerAddr,
     }
 
     TlsConnectCbTask *tlsConnectCbTask =  nullptr;
-    if(resp == ConnectResp::OK) {
+    if (resp == ConnectResp::OK) {
         tlsConnectCbTask = new (std::nothrow) TlsConnectCbTask(mNewConnectionHandler, fd, mWorkerLb);
         if (NN_UNLIKELY(tlsConnectCbTask == nullptr)) {
             resp = ConnectResp::CONN_ACCEPT_NEW_TASK_FAIL;
