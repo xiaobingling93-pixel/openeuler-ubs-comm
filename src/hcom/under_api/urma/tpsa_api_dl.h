@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "uvs_types.h"
+#include "uvs_api.h"
 
 #define TPSA_SO_PATH "libtpsa.so.0"
 
