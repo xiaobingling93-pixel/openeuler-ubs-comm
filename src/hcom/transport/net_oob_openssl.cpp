@@ -315,6 +315,7 @@ NResult OOBOpenSSLConnection::CommLoad(bool isServer)
         OOB_SSL_LAYER_CHECK_RET_ERASE_RET(ret <= 0, "TLS use private-key file failed");
         /* check private key */
         ret = HcomSsl::SslCtxCheckPrivateKey(mSslCtx);
+        OOB_SSL_LAYER_CHECK_RET_ERASE_RET(ret <= 0, "TLS check private-key failed");
     }
 
     /* set psk callback */
