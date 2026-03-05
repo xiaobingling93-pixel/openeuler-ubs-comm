@@ -120,7 +120,7 @@ public:
 
     void RunInThread() override;
 
-    void DealConnectInThread(int fd, struct sockaddr_in addressIn) override;
+    void DealConnectInThread(int fd, const sockaddr_storage &peerAddr, socklen_t peerLen) override;
 
     inline UBSHcomNetCipherSuite GetCipherSuite() const
     {

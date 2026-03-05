@@ -282,7 +282,7 @@ protected:
 
     NResult StartForUds();
 
-    virtual void DealConnectInThread(int fd, struct sockaddr_in addressIn);
+    virtual void DealConnectInThread(int fd, const sockaddr_storage &peerAddr, socklen_t peerLen);
 
 protected:
     NetDriverOobType mOobType = NET_OOB_TCP;        /* listen type TCP or UDS */
@@ -369,6 +369,8 @@ public:
     {
         return mOobType;
     }
+    
+    inline static std::string mLocalEid = "";
 
     /*
      * @brief for tcp
@@ -542,6 +544,7 @@ public:
                 result << " continue to accept future connection");
             return;
         }
+        NN_LOG_INFO("ConnectCbTask::Run handler succeeded for fd=" << mFd << " client=" << conn.GetIpAndPort());
         auto endConnCb = NetMonotonic::TimeUs();
         auto cbTime = endConnCb - startConnCb;
         if (NN_UNLIKELY(cbTime > MAX_CB_TIME_US)) {

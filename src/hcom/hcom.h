@@ -1340,7 +1340,7 @@ inline void UBSHcomNetMemoryAllocator::SetTargetSeg(void *targetSeg)
  * @brief Oob listening information for multiple listen port
  */
 struct UBSHcomNetOobListenerOptions {
-    char ip[NN_NO16]{};   /* listening ip */
+    char ip[NN_NO40]{};   /* listening ip */
     uint16_t port = 9980; /* listening port */
     uint16_t targetWorkerCount =
             UINT16_MAX; /* the count of target workers, if >= 1, the
@@ -2305,6 +2305,7 @@ protected:
     uint8_t mPeerDevIndex = 0;
     uint16_t mDevIndex = 0;
     uint8_t mBandWidth = 0;
+    std::string mEid;
     std::pair<uint16_t, uint16_t> mPortRange{0, 0};
 
     // hot used variables for start

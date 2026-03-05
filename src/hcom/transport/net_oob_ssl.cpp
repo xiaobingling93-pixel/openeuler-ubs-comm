@@ -25,19 +25,45 @@
 
 namespace ock {
 namespace hcom {
-void OOBSSLServer::DealConnectInThread(int fd, struct sockaddr_in addressIn)
+void OOBSSLServer::DealConnectInThread(int fd, const sockaddr_storage &peerAddr, socklen_t peerLen)
 {
     ConnectResp resp = ConnectResp::OK;
-    char ipStr[INET_ADDRSTRLEN] = {0};
-    if (inet_ntop(AF_INET, &addressIn.sin_addr, ipStr, INET_ADDRSTRLEN) == nullptr) {
-        NN_LOG_ERROR("Failed to convert ip number to string");
+
+    char ipStr[INET6_ADDRSTRLEN] = {0};
+    uint16_t peerPort = 0;
+    int family = peerAddr.ss_family;
+
+    if (family == AF_INET) {
+        const auto *a4 = reinterpret_cast<const sockaddr_in*>(&peerAddr);
+        if (inet_ntop(AF_INET, &(a4->sin_addr), ipStr, sizeof(ipStr)) == nullptr) {
+            NN_LOG_ERROR("Failed to convert ipv4 number to string");
+            resp = SERVER_INTERNAL_ERROR;
+        } else {
+            peerPort = ntohs(a4->sin_port);
+        }
+    } else if (family == AF_INET6) {
+        const auto *a6 = reinterpret_cast<const sockaddr_in6*>(&peerAddr);
+        if (inet_ntop(AF_INET6, &(a6->sin6_addr), ipStr, sizeof(ipStr)) == nullptr) {
+            NN_LOG_ERROR("Failed to convert ipv6 number to string");
+            resp = SERVER_INTERNAL_ERROR;
+        } else {
+            peerPort = ntohs(a6->sin6_port);
+        }
+    } else {
+        NN_LOG_ERROR("Unsupported address family: " << family);
         resp = SERVER_INTERNAL_ERROR;
     }
-    auto tlsConnectCbTask = new (std::nothrow) TlsConnectCbTask(mNewConnectionHandler, fd, mWorkerLb);
-    if (NN_UNLIKELY(tlsConnectCbTask == nullptr)) {
-        resp = ConnectResp::CONN_ACCEPT_NEW_TASK_FAIL;
-    } else {
-        tlsConnectCbTask->SetIpPort(std::string(ipStr), ntohs(addressIn.sin_port), mListenPort);
+
+    TlsConnectCbTask *tlsConnectCbTask =  nullptr;
+    if (resp == ConnectResp::OK) {
+        tlsConnectCbTask = new (std::nothrow) TlsConnectCbTask(mNewConnectionHandler, fd, mWorkerLb);
+        if (NN_UNLIKELY(tlsConnectCbTask == nullptr)) {
+            resp = ConnectResp::CONN_ACCEPT_NEW_TASK_FAIL;
+        }
+    }
+
+    if (resp == ConnectResp::OK) {
+        tlsConnectCbTask->SetIpPort(std::string(ipStr), peerPort, mListenPort);
         tlsConnectCbTask->SetTlsCb(mTlsCertCb, mTlsPrivateKeyCb, mTlsCaCallback);
         tlsConnectCbTask->SetTlsOptions(mCipherSuite, mTlsVersion);
         tlsConnectCbTask->SetPSKCallback(mPskFindSessionCb, mPskUseSessionCb);
@@ -56,7 +82,7 @@ void OOBSSLServer::DealConnectInThread(int fd, struct sockaddr_in addressIn)
         if (::send(fd, &resp, sizeof(ConnectResp), 0) <= 0) {
             char buf[NET_STR_ERROR_BUF_SIZE] = {0};
             NN_LOG_ERROR("Failed to send connect status to peer on oob @ " << ipStr << ":" <<
-                ntohs(addressIn.sin_port) << ", as " << NetFunc::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
+                peerPort << ", as " << NetFunc::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
         }
     }
 }
@@ -74,11 +100,8 @@ void OOBSSLServer::RunInThread()
     }
 
     mThreadStarted.store(true);
-    struct sockaddr_in addressIn {};
-    socklen_t len = sizeof(addressIn);
 
     int flags = 1;
-
     auto maxRecvTimeout = NetFunc::NN_GetLongEnv("HCOM_CONNECTION_RECV_TIMEOUT_SEC", NN_NO1, NN_NO7200, NN_NO0);
     auto maxSendTimeout = NetFunc::NN_GetLongEnv("HCOM_CONNECTION_SEND_TIMEOUT_SEC", NN_NO1, NN_NO7200, NN_NO0);
 
@@ -109,8 +132,10 @@ void OOBSSLServer::RunInThread()
                 continue;
             }
 
-            bzero(&addressIn, sizeof(struct sockaddr_in));
-            auto fd = ::accept(mListenFD, reinterpret_cast<struct sockaddr *>(&addressIn), &len);
+            sockaddr_storage peerAddr {};
+            socklen_t peerLen = sizeof(peerAddr);
+
+            auto fd = ::accept(mListenFD, reinterpret_cast<struct sockaddr *>(&peerAddr), &peerLen);
             if (fd < 0) {
                 char buf[NET_STR_ERROR_BUF_SIZE] = {0};
                 NN_LOG_WARN("Invalid to accept in oob ssl server on new socket with " <<
@@ -124,14 +149,14 @@ void OOBSSLServer::RunInThread()
             /* set recv or send timeout */
             if (maxRecvTimeout != NN_NO0) {
                 struct timeval recvTimeout = { maxRecvTimeout, 0 };
-                setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &recvTimeout, sizeof(timeval));
+                setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &recvTimeout, sizeof(recvTimeout));
             }
             if (maxSendTimeout != NN_NO0) {
                 struct timeval sendTimeout = { maxSendTimeout, 0 };
-                setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, sizeof(timeval));
+                setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, sizeof(sendTimeout));
             }
 
-            DealConnectInThread(fd, addressIn);
+            DealConnectInThread(fd, peerAddr, peerLen);
         } catch (std::exception &ex) {
             NN_LOG_WARN("Got exception in OOBSSLServer::RunInThread, exception " << ex.what() <<
                 ", ignore and continue");

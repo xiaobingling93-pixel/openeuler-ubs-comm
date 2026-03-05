@@ -18,6 +18,7 @@
 #include "ub_common.h"
 #include "ub_mr_fixed_buf.h"
 #include "ub_worker.h"
+#include "net_common.h"
 
 namespace ock {
 namespace hcom {
@@ -207,6 +208,13 @@ NResult NetDriverUB::CreateContext()
         return result;
     }
     mContext = tmpCtx;
+
+    uvs_eid_t eid{};
+    std::string strEid;
+    (void)memcpy(&eid, &tmpCtx->mBestEid.urmaEid, sizeof(urma_eid_t));
+    NetFunc::NN_EidToStr(eid, strEid);
+    mEid = strEid;
+    NN_LOG_DEBUG("UBContext created with best eid: " << mEid);
     return NN_OK;
 }
 

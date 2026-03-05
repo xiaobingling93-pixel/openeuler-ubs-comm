@@ -71,6 +71,8 @@ public:
 
     UBSHcomNetDriverProtocol protocol = UBSHcomNetDriverProtocol::UBC;
 
+    UBEId mBestEid{};
+
 private:
     std::string mName;
     urma_context_t *mUrmaContext = nullptr;
@@ -79,7 +81,6 @@ private:
     uint32_t mMaxJfs = 0;
     uint32_t mMaxJfr = 0;
     int mMaxSge = NN_NO16;
-    UBEId mBestEid{};
 
     DEFINE_RDMA_REF_COUNT_VARIABLE;
 
