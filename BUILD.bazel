@@ -9,3 +9,8 @@ cc_binary(
         "//src/ubsocket:ubsocket",
     ],
 )
+
+cc_binary(
+    name = "ubstat",
+    deps = ["//src:ubstat"],  # 依赖src目录下的ubstat目标
+)
