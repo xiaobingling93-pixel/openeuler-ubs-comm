@@ -27,14 +27,14 @@
 using UVS_GET_ROUTE_LIST = int (*)(const uvs_route_t *route, uvs_route_list_t *route_list);
 
 class TpsaAPI {
-    public:
-        static UVS_GET_ROUTE_LIST hcomUvsGetRouteList;
-        static bool IsLoaded();
+public:
+    static UVS_GET_ROUTE_LIST hcomUvsGetRouteList;
+    static bool IsLoaded();
 
-        static int LoadTpsaAPI()
+    static int LoadTpsaAPI();
 
-    private:
-        static bool gLoaded;
+private:
+    static bool gLoaded;
 };
 
 #endif
