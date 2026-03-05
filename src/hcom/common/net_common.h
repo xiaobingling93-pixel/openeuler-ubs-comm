@@ -31,7 +31,7 @@
 #include "net_trace.h"
 #include "net_util.h"
 #include "securec.h"
-#include "tpsa_api_dl_wrapper.h"
+#include "under_api/urma/tpsa_api_dl_wrapper.h"
 
 namespace ock {
 namespace hcom {
