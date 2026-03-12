@@ -332,8 +332,8 @@ SerResult Publisher::PostSendAll(const MultiCastTimerContext &context, const UBS
     ctx->SetSendCount(toSendCount);
     for (const auto &ep : eps) {
         if (NN_UNLIKELY(ep == nullptr)) {
-            NN_LOG_ERROR("ep " << ep->Id() << " is null!");
             failedCount++;
+            NN_LOG_ERROR("ep is null! failedCount " << failedCount);
             continue;
         }
 
