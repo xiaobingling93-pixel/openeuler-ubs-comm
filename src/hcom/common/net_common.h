@@ -31,7 +31,9 @@
 #include "net_trace.h"
 #include "net_util.h"
 #include "securec.h"
+#ifdef UB_BUILD_ENABLED
 #include "under_api/urma/tpsa_api_dl_wrapper.h"
+#endif
 
 namespace ock {
 namespace hcom {
@@ -318,7 +320,7 @@ public:
         }
         return isEid;
     }
-
+#ifdef UB_BUILD_ENABLED
     static NResult NN_EidToStr(uvs_eid_t &eid, std::string &strEid)
     {
         struct in6_addr eidIn6{};
@@ -389,7 +391,7 @@ public:
 
         return NN_OK;
     }
-
+#endif
     static bool NN_ConvertIpAndPort(const std::string &url, std::string &ip, uint16_t &port)
     {
         if (NN_UNLIKELY(NN_ValidateUrl(url) != NN_OK)) {
