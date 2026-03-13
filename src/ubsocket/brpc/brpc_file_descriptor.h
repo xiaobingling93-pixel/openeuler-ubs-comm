@@ -4097,9 +4097,14 @@ public:
         }
 
         if (m_epoll_event_map.count(fd) > 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
-            errno = EEXIST;
-            return -1;
+            RPC_ADPT_VLOG_WARN("Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
+            EpollEvent *epoll_event = static_cast<Brpc::EpollEvent*>(m_epoll_event_map[fd]);
+            if (epoll_event->DelEpollEvent(m_fd) != 0)
+            {
+                RPC_ADPT_VLOG_WARN("Deleting duplicated fd: %d from epfd: %d is unsuccessful\n", fd, m_fd);
+            }
+            delete epoll_event;
+            m_epoll_event_map.erase(fd);
         }
 
         EpollEvent *epoll_event = nullptr;
