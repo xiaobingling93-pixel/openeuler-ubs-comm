@@ -7,11 +7,13 @@
  *History: 2026-02-09
 */
 
+#include "cli_client.h"
+
 #include "file_descriptor.h"
 #include "cli_args_parser.h"
 #include "cli_terminal_display.h"
 #include "utracer_info.h"
-#include "cli_client.h"
+#include "scope_exit.h"
 
 namespace Statistics {
 
@@ -173,26 +175,22 @@ int CLIClient::Query(CLIArgsParser::ParsedArgs &args, CLIMessage &response)
         return -1;
     }
 
+    auto guard = ubsocket::MakeScopeExit([sockfd]() { ::close(sockfd); });
+
     struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     addr.sun_path[0] = '\0';
     if (strncpy_s(addr.sun_path + 1, sizeof(addr.sun_path) - 1, mServerPath.c_str(), sizeof(addr.sun_path) - 1) != 0) {
-        close(sockfd);
-        sockfd = -1;
         CLI_LOG("Failed to copy server path\n");
         return -1;
     }
     addr.sun_path[sizeof(addr.sun_path) - 1] = '\0';
     if (connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        close(sockfd);
-        sockfd = -1;
         CLI_LOG("Failed to connect server errno=%d, error=%s\n", errno, strerror(errno));
         return -1;
     }
 
     if (SetSocketTimeout(sockfd) != 0) {
-        close(sockfd);
-        sockfd = -1;
         CLI_LOG("SetSocketTimeout failed\n");
         return -1;
     }
@@ -200,31 +198,16 @@ int CLIClient::Query(CLIArgsParser::ParsedArgs &args, CLIMessage &response)
     int ret = 0;
     if (args.command == CLICommand::STAT) {
         ret = ProcessStat(sockfd, response);
-        if (ret != 0) {
-            close(sockfd);
-            sockfd = -1;
-        }
-
         return ret;
     }
 
     if (args.command == CLICommand::TOPO) {
         ret = ProcessTopo(sockfd, response, args);
-        if (ret != 0) {
-            close(sockfd);
-            sockfd = -1;
-        }
-
         return ret;
     }
 
     if (args.command == CLICommand::DELAY) {
         ret =  ProcessDelayQuery(sockfd, response, args);
-        if (ret != 0) {
-            close(sockfd);
-            sockfd = -1;
-        }
-
         return ret;
     }
     return 0;
