@@ -25,6 +25,12 @@ namespace hcom {
 constexpr uint16_t RECON_DELAY_ERASE_TIME = 60;
 constexpr uint16_t DEFAULT_DELAY_ERASE_TIME = 1;
 
+inline void DestroyCallback(const Callback *cb)
+{
+    if (cb != nullptr) {
+        delete cb;
+    }
+}
 
 SerResult HcomChannelImp::Initialize(std::vector<UBSHcomNetEndpointPtr> &ep, uintptr_t ctxMemPool,
     uintptr_t periodicMgr, uintptr_t pgTable, uint32_t ctxStoreCapacity)
@@ -464,6 +470,7 @@ int32_t HcomChannelImp::Send(const UBSHcomRequest &req, const Callback *done)
     do {
         result = FlowControl(req.size, mOptions.twoSideTimeout, timestamp);
         if (NN_UNLIKELY(SER_OK != result)) {
+            DestroyCallback(done);
             return result;
         }
 
@@ -795,7 +802,7 @@ SerResult HcomChannelImp::AsyncSendSplitWithWorkerPoll(UBSHcomNetEndpoint *&ep, 
             std::placeholders::_1);
         if (!callback) {
             NN_LOG_ERROR("Async send malloc callback failed");
-            delete done;
+            DestroyCallback(done);
             return SER_NEW_OBJECT_FAILED;
         }
 
@@ -804,7 +811,7 @@ SerResult HcomChannelImp::AsyncSendSplitWithWorkerPoll(UBSHcomNetEndpoint *&ep, 
         if (result != SER_OK) {
             NN_LOG_ERROR("Prepare timer context failed when sending [" << (segIndex + 1) << "/" << fragmentNum << "]");
             delete callback;
-            delete done;
+            DestroyCallback(done);
             return result;
         }
 
@@ -824,7 +831,7 @@ SerResult HcomChannelImp::AsyncSendSplitWithWorkerPoll(UBSHcomNetEndpoint *&ep, 
                          "] failed");
 
             DestroyTimerContext(context);
-            delete done;
+            DestroyCallback(done);
             return result;
         }
         NN_LOG_DEBUG("AsyncSendSplitWithWorkerPoll fragment [" << (segIndex + 1) << "/" << fragmentNum << "] end");
@@ -837,14 +844,14 @@ SerResult HcomChannelImp::AsyncSendInner(const UBSHcomRequest &req, const Callba
 {
     if (mOptions.selfPoll) {
         NN_LOG_ERROR("Failed to invoke async send with self poll, not support");
-        delete done;
+        DestroyCallback(done);
         return SER_INVALID_PARAM;
     }
 
     UBSHcomNetEndpoint *ep = nullptr;
     SerResult result = NextWorkerPollEp(ep);
     if (NN_UNLIKELY(SER_OK != result)) {
-        delete done;
+        DestroyCallback(done);
         return result;
     }
 
@@ -858,7 +865,7 @@ SerResult HcomChannelImp::AsyncSendInner(const UBSHcomRequest &req, const Callba
     TimerCtx context {};
     result = PrepareTimerContext(const_cast<Callback *>(done), mOptions.twoSideTimeout, context);
     if (result != SER_OK) {
-        delete done;
+        DestroyCallback(done);
         return result;
     }
     SetServiceTransCtx(transReq.upCtxData, context.seqNo);
@@ -975,6 +982,7 @@ int32_t HcomChannelImp::Call(const UBSHcomRequest &req, UBSHcomResponse &rsp, co
     do {
         result = FlowControl(req.size, mOptions.twoSideTimeout, timestamp);
         if (NN_UNLIKELY(result != SER_OK)) {
+            DestroyCallback(done);
             return result;
         }
         result = CallInner(req, rsp, done);
@@ -1403,14 +1411,14 @@ SerResult HcomChannelImp::AsyncCallInner(const UBSHcomRequest &req, const Callba
 {
     if (mOptions.selfPoll) {
         NN_LOG_ERROR("Failed to invoke async call with self poll, not support");
-        delete done;
+        DestroyCallback(done);
         return SER_INVALID_PARAM;
     }
 
     UBSHcomNetEndpoint *ep = nullptr;
     auto result = NextWorkerPollEp(ep);
     if (NN_UNLIKELY(result != SER_OK)) {
-        delete done;
+        DestroyCallback(done);
         return result;
     }
 
@@ -1422,7 +1430,7 @@ SerResult HcomChannelImp::AsyncCallInner(const UBSHcomRequest &req, const Callba
     TimerCtx context {};
     result = PrepareTimerContext(const_cast<Callback *>(done), mOptions.twoSideTimeout, context);
     if (result != SER_OK) {
-        delete done;
+        DestroyCallback(done);
         return result;
     }
 
@@ -1470,7 +1478,7 @@ SerResult HcomChannelImp::AsyncCallSplitWithWorkerPoll(UBSHcomNetEndpoint *&ep, 
             std::placeholders::_1);
         if (!cb) {
             NN_LOG_ERROR("AsyncCallInner malloc callback failed");
-            delete done;
+            DestroyCallback(done);
             return SER_NEW_OBJECT_FAILED;
         }
 
@@ -1479,7 +1487,7 @@ SerResult HcomChannelImp::AsyncCallSplitWithWorkerPoll(UBSHcomNetEndpoint *&ep, 
         if (result != SER_OK) {
             NN_LOG_ERROR("Prepare timer context failed when sending [" << (segIndex + 1) << "/" << fragmentNum << "]");
             delete cb;
-            delete done;
+            DestroyCallback(done);
             return result;
         }
 
@@ -1499,7 +1507,7 @@ SerResult HcomChannelImp::AsyncCallSplitWithWorkerPoll(UBSHcomNetEndpoint *&ep, 
             NN_LOG_ERROR("AsyncCallSplitWithWorkerPoll Send fragment [" << (segIndex + 1) << "/" << fragmentNum <<
                          "] failed");
             DestroyTimerContext(context);
-            delete done;
+            DestroyCallback(done);
             return result;
         }
         NN_LOG_DEBUG("AsyncCallSplitWithWorkerPoll fragment [" << (segIndex + 1) << "/" << fragmentNum << "] end");
@@ -1518,6 +1526,7 @@ int32_t HcomChannelImp::Reply(const UBSHcomReplyContext &ctx, const UBSHcomReque
     do {
         ret = FlowControl(req.size, mOptions.twoSideTimeout, timestamp);
         if (NN_UNLIKELY(ret != SER_OK)) {
+            DestroyCallback(done);
             return ret;
         }
         ret = ReplyInner(ctx, req, done);
@@ -1671,7 +1680,7 @@ SerResult HcomChannelImp::AsyncReplyInner(const UBSHcomReplyContext &ctx, const 
     res = ResponseWorkerPollEp(ctx.rspCtx, ep);
     if (NN_UNLIKELY(res != SER_OK)) {
         NN_LOG_ERROR("Failed to select ep " << res);
-        delete done;
+        DestroyCallback(done);
         return res;
     }
 
@@ -1685,7 +1694,11 @@ SerResult HcomChannelImp::AsyncReplyInner(const UBSHcomReplyContext &ctx, const 
     SetServiceTransCtx(transReq.upCtxData, const_cast<Callback *>(done));
     MarkOpCodeBySeqNo(newSeqNo, ctx.rspCtx, mRespOriginalSeqNo);
     UBSHcomNetTransOpInfo transOp(newSeqNo, mOptions.twoSideTimeout, ctx.errorCode, 0);
-    return ep->PostSend(req.opcode, transReq, transOp);
+    res = ep->PostSend(req.opcode, transReq, transOp);
+    if (NN_UNLIKELY(res != SER_OK)) {
+        DestroyCallback(done);
+    }
+    return res;
 }
 
 SerResult HcomChannelImp::AsyncReplySplitWithWorkerPoll(const UBSHcomReplyContext &ctx, UBSHcomNetEndpoint *&ep,
@@ -1712,7 +1725,7 @@ SerResult HcomChannelImp::AsyncReplySplitWithWorkerPoll(const UBSHcomReplyContex
             std::placeholders::_1);
         if (!cb) {
             NN_LOG_ERROR("Async send malloc callback failed");
-            delete done;
+            DestroyCallback(done);
             return SER_NEW_OBJECT_FAILED;
         }
 
@@ -1721,7 +1734,7 @@ SerResult HcomChannelImp::AsyncReplySplitWithWorkerPoll(const UBSHcomReplyContex
         if (result != SER_OK) {
             NN_LOG_ERROR("Prepare timer context failed when sending [" << (segIndex + 1) << "/" << fragmentNum << "]");
             delete cb;
-            delete done;
+            DestroyCallback(done);
             return result;
         }
 
@@ -1741,7 +1754,7 @@ SerResult HcomChannelImp::AsyncReplySplitWithWorkerPoll(const UBSHcomReplyContex
                          "] failed");
 
             DestroyTimerContext(context);
-            delete done;
+            DestroyCallback(done);
             return result;
         }
         NN_LOG_DEBUG("AsyncReplySplitWithWorkerPoll fragment [" << (segIndex + 1) << "/" << fragmentNum << "] end");
@@ -1933,6 +1946,7 @@ SerResult HcomChannelImp::OneSideAsyncWithWorkerPoll(const UBSHcomOneSideRequest
     Callback *cb = GetAsyncCB(multiNum, done);
     if (NN_UNLIKELY(cb == nullptr)) {
         NN_LOG_ERROR("Get OneSideCB failed ");
+        DestroyCallback(done);
         return SER_NEW_OBJECT_FAILED;
     }
 
@@ -1983,6 +1997,7 @@ SerResult HcomChannelImp::OneSideInner(const UBSHcomOneSideRequest &request, con
             return OneSideSyncWithSelfPoll(request, isWrite);
         } else {
             NN_LOG_ERROR("Failed to invoke async one side op with self poll, not supported");
+            DestroyCallback(done);
             return SER_INVALID_PARAM;
         }
     } else {
@@ -2005,6 +2020,7 @@ int32_t HcomChannelImp::Put(const UBSHcomOneSideRequest &req, const Callback *do
     do {
         ret = FlowControl(req.size, mOptions.oneSideTimeout, timestamp);
         if (NN_UNLIKELY(ret != SER_OK)) {
+            DestroyCallback(done);
             return ret;
         }
 
@@ -2035,6 +2051,7 @@ int32_t HcomChannelImp::Get(const UBSHcomOneSideRequest &req, const Callback *do
     do {
         ret = FlowControl(req.size, mOptions.oneSideTimeout, timestamp);
         if (NN_UNLIKELY(ret != SER_OK)) {
+            DestroyCallback(done);
             return ret;
         }
 
@@ -2053,13 +2070,6 @@ int32_t HcomChannelImp::Get(const UBSHcomOneSideRequest &req, const Callback *do
 
     NN_LOG_ERROR("Failed to read " << ret);
     return ret;
-}
-
-inline void DestroyCallback(const Callback *cb)
-{
-    if (cb != nullptr) {
-        delete cb;
-    }
 }
 
 int32_t HcomChannelImp::Recv(const UBSHcomServiceContext &context, uintptr_t address, uint32_t size,
@@ -2207,6 +2217,7 @@ SerResult HcomChannelImp::OneSideSglAsyncWithWorkerPoll(const UBSHcomOneSideSglR
     auto result = NextWorkerPollEp(ep, 0);
     if (NN_UNLIKELY(result != SER_OK)) {
         NN_LOG_ERROR("Get Ep failed " << result);
+        DestroyCallback(done);
         return result;
     }
 
@@ -2252,6 +2263,7 @@ SerResult HcomChannelImp::OneSideSglInner(const UBSHcomOneSideSglRequest &reques
             return OneSideSglSyncWithSelfPoll(request, isWrite);
         } else {
             NN_LOG_ERROR("Failed to invoke async one side sgl op with self poll, not supported");
+            DestroyCallback(done);
             return SER_INVALID_PARAM;
         }
     } else {
@@ -2274,6 +2286,7 @@ int32_t HcomChannelImp::PutV(const UBSHcomOneSideSglRequest &req, const Callback
     do {
         ret = FlowControl(req.Size(), mOptions.oneSideTimeout, timestamp);
         if (NN_UNLIKELY(ret != SER_OK)) {
+            DestroyCallback(done);
             return ret;
         }
 
@@ -2303,6 +2316,7 @@ int32_t HcomChannelImp::GetV(const UBSHcomOneSideSglRequest &req, const Callback
     do {
         ret = FlowControl(req.Size(), mOptions.oneSideTimeout, timestamp);
         if (NN_UNLIKELY(ret != SER_OK)) {
+            DestroyCallback(done);
             return ret;
         }
 
