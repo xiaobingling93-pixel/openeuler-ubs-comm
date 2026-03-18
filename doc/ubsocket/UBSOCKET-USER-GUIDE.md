@@ -271,6 +271,7 @@ UBSocket提供了两种日志输出方式，如通过环境变量UBSOCKET\_LOG\_
 
 >说明： 
 >-   日志等级：包括ERROR, WARNING, NOTICE, INFO, DEBUG
+>-   错误类型：包括UMQ_AE, UMQ_API, UMQ_CQE, UBSocket，其中非ERROR级别固定为UBSocket
 >-   函数名：上报该日志的函数名
 >-   代码行号：上报该日志的代码行号
 >-   日志信息：该行记录对应的日志信息，包括异常信息说明等
