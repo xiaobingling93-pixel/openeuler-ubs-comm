@@ -43,6 +43,7 @@ constexpr uint32_t OOB_DEFAULT_LISTEN_PORT = 9980;
 constexpr uint32_t OOB_DEFAULT_LISTEN_BACKLOG = 65535;
 constexpr uint32_t MR_FIXED_POOL_DEFAULT_SEG_SIZE = 8192;
 constexpr uint32_t MR_FIXED_POOL_DEFAULT_SEG_COUNT = 1024;
+constexpr const char *INVALID_IP_PORT_SPLIT_PLACEHOLDER = "999999";
 
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
@@ -282,7 +283,11 @@ public:
         std::vector<std::string> ipPortVec;
         NN_SplitStr(ipPort, ":", ipPortVec);
         if (ipPortVec.size() != NN_NO2) {
-            ipPortVec[0] = "999999";
+            if (ipPortVec.empty()) {
+                ipPortVec.push_back(INVALID_IP_PORT_SPLIT_PLACEHOLDER);
+            } else {
+                ipPortVec[0] = INVALID_IP_PORT_SPLIT_PLACEHOLDER;
+            }
         }
 
         auto tmp = inet_addr(ipPortVec[0].c_str());
@@ -325,8 +330,14 @@ public:
     {
         struct in6_addr eidIn6{};
         uint32_t size = sizeof(uint64_t); // size of uint64_t: 8
-        memcpy_s(&eidIn6.s6_addr[0], size, &eid.in6.subnet_prefix, size);
-        memcpy_s(&eidIn6.s6_addr[size], size, &eid.in6.interface_id, size);
+        if (NN_UNLIKELY(memcpy_s(&eidIn6.s6_addr[0], size, &eid.in6.subnet_prefix, size) != NN_OK)) {
+            NN_LOG_ERROR("Failed to copy subnet_prefix to in6_addr");
+            return NN_INVALID_PARAM;
+        }
+        if (NN_UNLIKELY(memcpy_s(&eidIn6.s6_addr[size], size, &eid.in6.interface_id, size) != NN_OK)) {
+            NN_LOG_ERROR("Failed to copy interface_id to in6_addr");
+            return NN_INVALID_PARAM;
+        }
 
         strEid.resize(INET6_ADDRSTRLEN);
         if (inet_ntop(AF_INET6, &eidIn6, &strEid[0], strEid.size()) == nullptr) {
@@ -349,8 +360,14 @@ public:
         }
 
         eid = {0};
-        memcpy_s(&eid.in6.subnet_prefix, size, &eidIn6.s6_addr[0], size);
-        memcpy_s(&eid.in6.interface_id, size, &eidIn6.s6_addr[size], size);
+        if (NN_UNLIKELY(memcpy_s(&eid.in6.subnet_prefix, size, &eidIn6.s6_addr[0], size) != NN_OK)) {
+            NN_LOG_ERROR("Failed to copy subnet_prefix from in6_addr");
+            return NN_INVALID_PARAM;
+        }
+        if (NN_UNLIKELY(memcpy_s(&eid.in6.interface_id, size, &eidIn6.s6_addr[size], size) != NN_OK)) {
+            NN_LOG_ERROR("Failed to copy interface_id from in6_addr");
+            return NN_INVALID_PARAM;
+        }
         NN_LOG_INFO("Convert string to eid success.");
 
         return NN_OK;
@@ -367,8 +384,14 @@ public:
         uvs_eid_t uDstBondingEid = {0};
         NN_StrToEid(srcBondingEid, uSrcBondingEid);
         NN_StrToEid(dstBondingEid, uDstBondingEid);
-        memcpy_s(&uvsRoute.src, sizeof(uvs_eid_t), &uSrcBondingEid, sizeof(uvs_eid_t));
-        memcpy_s(&uvsRoute.dst, sizeof(uvs_eid_t), &uDstBondingEid, sizeof(uvs_eid_t));
+        if (NN_UNLIKELY(memcpy_s(&uvsRoute.src, sizeof(uvs_eid_t), &uSrcBondingEid, sizeof(uvs_eid_t)) != NN_OK)) {
+            NN_LOG_ERROR("Failed to copy source bonding eid to route");
+            return NN_INVALID_PARAM;
+        }
+        if (NN_UNLIKELY(memcpy_s(&uvsRoute.dst, sizeof(uvs_eid_t), &uDstBondingEid, sizeof(uvs_eid_t)) != NN_OK)) {
+            NN_LOG_ERROR("Failed to copy destination bonding eid to route");
+            return NN_INVALID_PARAM;
+        }
 
         int ret = HcomTpsa::UvsGetRouteList(&uvsRoute, &uvsRouteList);
         if (ret != 0) {
@@ -382,8 +405,16 @@ public:
 
         uvs_eid_t uSrcPrimaryEid = {0};
         uvs_eid_t uDstPrimaryEid = {0};
-        memcpy_s(&uSrcPrimaryEid, sizeof(uvs_eid_t), &uvsRouteList.buf[0].src, sizeof(uvs_eid_t));
-        memcpy_s(&uDstPrimaryEid, sizeof(uvs_eid_t), &uvsRouteList.buf[0].dst, sizeof(uvs_eid_t));
+        if (NN_UNLIKELY(memcpy_s(&uSrcPrimaryEid, sizeof(uvs_eid_t), &uvsRouteList.buf[0].src, sizeof(uvs_eid_t)) !=
+            NN_OK)) {
+            NN_LOG_ERROR("Failed to copy source primary eid from route list");
+            return NN_INVALID_PARAM;
+        }
+        if (NN_UNLIKELY(memcpy_s(&uDstPrimaryEid, sizeof(uvs_eid_t), &uvsRouteList.buf[0].dst, sizeof(uvs_eid_t)) !=
+            NN_OK)) {
+            NN_LOG_ERROR("Failed to copy destination primary eid from route list");
+            return NN_INVALID_PARAM;
+        }
         NN_EidToStr(uSrcPrimaryEid, srcPrimaryEid);
         NN_EidToStr(uDstPrimaryEid, dstPrimaryEid);
 
@@ -425,21 +456,23 @@ public:
                 ip = url.substr(0, url.rfind(':'));
             }
 
-            port = std::strtoul(url.substr(url.rfind(':') + 1).c_str(), nullptr, NN_NO10);
-            if (NN_UNLIKELY(port == NN_NO0)) {
+            auto tmpPort = std::strtoul(url.substr(url.rfind(':') + 1).c_str(), nullptr, NN_NO10);
+            if (NN_UNLIKELY(tmpPort == NN_NO0 || tmpPort > NN_NO65535)) {
                 NN_LOG_ERROR("Invalid port, url:" << url);
                 return false;
             }
+            port = static_cast<uint16_t>(tmpPort);
             return true;
         }
 
         // ipv4
         ip = url.substr(0, pos);
-        port = std::strtoul(url.substr(pos + 1).c_str(), nullptr, NN_NO10);
-        if (NN_UNLIKELY(port == NN_NO0)) {
+        auto tmpPort = std::strtoul(url.substr(pos + 1).c_str(), nullptr, NN_NO10);
+        if (NN_UNLIKELY(tmpPort == NN_NO0 || tmpPort > NN_NO65535)) {
             NN_LOG_ERROR("Invalid port, url:" << url);
             return false;
         }
+        port = static_cast<uint16_t>(tmpPort);
         return true;
     }
 
@@ -458,7 +491,7 @@ public:
             return false;
         }
 
-        jettyId = tmpId;
+        jettyId = static_cast<uint16_t>(tmpId);
         return true;
     }
 
@@ -476,11 +509,12 @@ public:
             return true;
         }
         name = url.substr(0, pos);
-        perm = std::strtoul(url.substr(pos + 1).c_str(), nullptr, NN_NO10);
-        if (NN_UNLIKELY(perm == NN_NO0) || NN_UNLIKELY(perm == UINT16_MAX)) {
+        auto tmpPerm = std::strtoul(url.substr(pos + 1).c_str(), nullptr, NN_NO10);
+        if (NN_UNLIKELY(tmpPerm == NN_NO0) || NN_UNLIKELY(tmpPerm >= UINT16_MAX)) {
             NN_LOG_ERROR("Invalid perm, url:" << url);
             return false;
         }
+        perm = static_cast<uint16_t>(tmpPerm);
         return true;
     }
 
