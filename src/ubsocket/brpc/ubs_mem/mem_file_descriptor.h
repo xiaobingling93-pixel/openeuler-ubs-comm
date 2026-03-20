@@ -39,6 +39,7 @@ constexpr uint8_t POLLING_USING = 1;
 constexpr uint8_t POLLING_CLOSING = 2;
 constexpr uint8_t POLLING_CLOSED = 3;
 constexpr uint32_t WAIT_LOCAL_END_SLEEP_INTERVAL = 100;
+constexpr uint32_t WAIT_UNMAP_END_SLEEP_INTERVAL = 1000;
 
 class FallbackTcp {
 public:
@@ -115,6 +116,7 @@ public:
 
         shm->Unmap(&m_remoteTrxShm);
         shm->Unmap(&m_localTrxShm);
+        std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_UNMAP_END_SLEEP_INTERVAL));
         shm->Free(&m_remoteTrxShm);
         shm->Free(&m_localTrxShm);
 
@@ -131,7 +133,7 @@ public:
     static const uint64_t CONTROL_PLANE_MAGIC_NUMBER = 0xff52504341445055;
     static const uint8_t CONTROL_PLANE_MAGIC_NUMBER_PREFIX = 0xff;
     static const uint64_t CONTROL_PLANE_MAGIC_NUMBER_BODY = 0x52504341445055;
-    static const uint32_t NEGOTIATE_TIMEOUT_MS = 1000;
+    static const uint32_t NEGOTIATE_TIMEOUT_MS = 5000;
     static const uint32_t CONTROL_PLANE_TIMEOUT_MS = 5000;
 
     static int ValidateMagicNumber(int fd, uint64_t &magic_number, ssize_t &magic_number_recv_size)
@@ -148,8 +150,18 @@ public:
         return 0;
     }
 
-    void OutputStats(std::ostringstream &oss)
+    void OutputStats(std::ostringstream &oss) override
     {
+        RPC_ADPT_VLOG_INFO("OutputStats in mem fd is called, but returning directly\n");
+        return;
+    }
+
+    void GetSocketCLIData(Statistics::CLISocketData *data)
+    {
+        if (data) {
+            *data = Statistics::CLISocketData();
+            RPC_ADPT_VLOG_INFO("GetSocketCLIData in mem fd is called, but returning directly\n");
+        }
         return;
     }
 
@@ -602,7 +614,7 @@ public:
         int currentState = m_pollingWriteState.load(std::memory_order_acquire);
         // 如果正在关闭或已关闭，直接返回
         if (currentState >= POLLING_CLOSING) {
-            return PollingErrCode::NOT_READY;
+            return PollingErrCode::ERR;
         }
         
         // 如果是 USING 状态，可重入执行（不修改状态）
@@ -615,7 +627,7 @@ public:
 
                 // CAS 失败，检查是否进入了 CLOSING 状态
                 if (expected >= POLLING_CLOSING) {
-                    return PollingErrCode::NOT_READY;
+                    return PollingErrCode::ERR;
                 }
                 // 否则是已经是 USING，可重入执行
             } else {
@@ -636,14 +648,14 @@ public:
                 std::memory_order_acq_rel)) {
                 // 析构函数已设置为 CLOSING，通知它我们已完成
                 m_pollingWriteState.store(POLLING_CLOSED, std::memory_order_release);
-                return PollingErrCode::NOT_READY;
+                return PollingErrCode::ERR;
             }
         }
 
         if (res == 0) {
             return PollingErrCode::OK;
         }
-        return PollingErrCode::ERR;
+        return PollingErrCode::NOT_READY;
     }
 
     PollingErrCode IsShmWriteable(uint32_t event) override
@@ -653,7 +665,7 @@ public:
 
         // 如果正在关闭或已关闭，直接返回
         if (currentState >= POLLING_CLOSING) {
-            return PollingErrCode::NOT_READY;
+            return PollingErrCode::ERR;
         }
 
         // 如果是 USING 状态，可重入执行（不修改状态）
@@ -665,7 +677,7 @@ public:
                 std::memory_order_acq_rel)) {
                 // CAS 失败，检查是否进入了 CLOSING 状态
                 if (expected >= POLLING_CLOSING) {
-                    return PollingErrCode::NOT_READY;
+                    return PollingErrCode::ERR;
                 }
                 // 否则是已经是 USING，可重入执行
             } else {
@@ -686,14 +698,14 @@ public:
                 std::memory_order_acq_rel)) {
                 // 析构函数已设置为 CLOSING，通知它我们已完成
                 m_pollingWriteState.store(POLLING_CLOSED, std::memory_order_release);
-                return PollingErrCode::NOT_READY;
+                return PollingErrCode::ERR;
             }
         }
 
         if (res == 0) {
             return PollingErrCode::OK;
         }
-        return PollingErrCode::ERR;
+        return PollingErrCode::NOT_READY;
     }
 
 private:

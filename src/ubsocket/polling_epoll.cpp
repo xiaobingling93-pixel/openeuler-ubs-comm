@@ -263,16 +263,9 @@ PollingErrCode PollingEpoll::EpInEventProcess(EventPoll *eventPoll, EpItem epIte
     SocketFd *obj = Fd<SocketFd>::GetFdObj(epItem.fd);
     PollingErrCode rc = PollingErrCode::OK;
     if (obj != nullptr) {
-        while (1) {
-            rc = obj->IsShmReadable(epItem.event.events);
-            if (rc == PollingErrCode::OK) {
-                break;
-            }
-            if (rc == PollingErrCode::NOT_READY) {
-                RPC_ADPT_VLOG_WARN("Polling stop, rc %d.\n", static_cast<int>(rc));
-                break;
-            }
-        }
+        rc = obj->IsShmReadable(epItem.event.events);
+        RPC_ADPT_VLOG_DEBUG(
+            "EPOLLIN event, readable %d, epfd=%d, fd=%d.\n", rc, eventPoll->epfd, epItem.fd);
     }
 #else
     PollingErrCode rc = IsUmqReadable(epItem.fd);
@@ -291,8 +284,8 @@ PollingErrCode PollingEpoll::EpOutEventProcess(EventPoll *eventPoll, EpItem epIt
     PollingErrCode rc = PollingErrCode::OK;
     if (obj != nullptr) {
         rc = obj->IsShmWriteable(epItem.event.events);
-        RPC_ADPT_VLOG_WARN(
-            "[DEBUG] EPOUT event, writeable %d, epfd=%d, fd=%d.\n", rc, eventPoll->epfd, epItem.fd);
+        RPC_ADPT_VLOG_DEBUG(
+            "EPOLLOUT event, writeable %d, epfd=%d, fd=%d.\n", rc, eventPoll->epfd, epItem.fd);
     }
 #else
     PollingErrCode rc = IsUmqWriteable();
@@ -322,7 +315,20 @@ void PollingEpoll::EpollProcess(EventPoll *eventPoll)
         if (socket->type != SocketType::SOCKET_TYPE_TCP_SERVER && socket->type != SocketType::SOCKET_TYPE_TCP_CLIENT) {
             continue;
         }
-
+#ifdef UBS_SHM_BUILD_ENABLED
+        if (curNode->epItem.event.events & EPOLLIN) {
+            if (EpInEventProcess(eventPoll, curNode->epItem) == PollingErrCode::ERR) {
+                EpollListRemove(eventPoll->waitList, fd);
+                continue;
+            }
+        }
+        if (curNode->epItem.event.events & EPOLLOUT) {
+            if (EpOutEventProcess(eventPoll, curNode->epItem) == PollingErrCode::ERR) {
+                EpollListRemove(eventPoll->waitList, fd);
+                continue;
+            }
+        }
+#else
         if (curNode->epItem.event.events & EPOLLIN) {
             if (EpInEventProcess(eventPoll, curNode->epItem) != PollingErrCode::OK) {
                 EpollListRemove(eventPoll->waitList, fd);
@@ -335,6 +341,7 @@ void PollingEpoll::EpollProcess(EventPoll *eventPoll)
                 continue;
             }
         }
+#endif
     }
 }
 

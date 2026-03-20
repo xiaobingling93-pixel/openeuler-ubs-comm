@@ -5,6 +5,7 @@
 #include <atomic>
 #include <ctime>
 #include <cstdio>
+#include <limits>
 #include "rpc_adpt_vlog.h"
 #include "sys/epoll.h"
 #ifdef UBS_SHM_BUILD_ENABLED
