@@ -190,7 +190,7 @@ public:
       char m_use_ub_force_str[BOOL_STR_LEN_MAX] = "";
       bool m_use_ub_force = false;
       char m_enable_share_jfr_str[BOOL_STR_LEN_MAX] = "";
-      bool m_enable_share_jfr = false;
+      bool m_enable_share_jfr = true;
       uint64_t m_share_jfr_rx_queue_depth = DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH;
 }; 
    

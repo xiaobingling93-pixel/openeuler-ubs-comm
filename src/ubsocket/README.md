@@ -125,7 +125,7 @@ UBSOCKET_READV_UNLIMITED=true \
 | UBSOCKET_TRACE_FILE_PATH   | 控制维测数据输出路径  | [1, 512]                                                    | /tmp/ubsocket/log | 否                        |
 | UBSOCKET_TRACE_FILE_SIZE   | 控制维测数据文件大小（MB）   | [1, 300]                                                   | 10 | 否                        |
 | UBSOCKET_STATS_CLI | 是否启用trace cli功能 | true, false                                                | false   | 否                                |
-| UBSOCKET_ENABLE_SHARE_JFR | 设置是否开启共享JFR | false, true                                              | false   | 否                                |
+| UBSOCKET_ENABLE_SHARE_JFR | 设置是否开启共享JFR | false, true                                              | true   | 否                                |
 | UBSOCKET_SHARE_JFR_RX_QUEUE_DEPTH | 设置开启共享JFR后，每个Socket链接接收缓存队列深度 | 最小值是64，设置上限由实际机器环境决定                                                | 1024   | 否                                |
 | UBSOCKET_USE_BRPC_ZCOPY | 是否使用brpc zcopy函数 | false, true                                               | true   | 否                                |
 

@@ -849,7 +849,7 @@ public:
         }
 
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (!enable_share_jfr && m_rx.m_get_and_ack_event) {
             if (GetAndAckEvent(UMQ_IO_RX) < 0) {
                 errno = EIO;
@@ -2264,7 +2264,7 @@ public:
     int PrefillRx()
     {
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (enable_share_jfr && !m_need_prefill_rx) {
             return 0;
         }
@@ -2445,7 +2445,7 @@ private:
     uint64_t CreateSubUmq(umq_create_option_t *cfg, umq_eid_t *localEid)
     {
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (!enable_share_jfr) {
             return umq_create(cfg);
         }
@@ -2619,7 +2619,7 @@ private:
         FlushTx();
 
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         enable_share_jfr ? FlushRxQueue() : FlushRx();
     }
 
@@ -2641,7 +2641,7 @@ private:
     void DeleteSubUmq()
     {
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (!enable_share_jfr) {
             return;
         }
@@ -3284,7 +3284,7 @@ private:
     ALWAYS_INLINE int GetQbuf(umq_buf_t **buf, uint32_t max_buf_size)
     {
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (!enable_share_jfr) {
             return UmqPollAndRefillRx(buf, max_buf_size);
         }
@@ -3793,7 +3793,7 @@ public:
         }
 
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (socket_fd_obj == nullptr || !enable_share_jfr) {
             return ::EpollEvent::ProcessEpollEvent(input_event, output_event, use_polling);
         }
@@ -4154,7 +4154,7 @@ public:
         }
 
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (!enable_share_jfr) {
             return 0;
         }
@@ -4211,7 +4211,7 @@ private:
     void CreateAndAddShareJfrEpollEvent(int fd, struct epoll_event *event)
     {
         Brpc::Context *context = Brpc::Context::GetContext();
-        bool enable_share_jfr = context == nullptr ? false : context->EnableShareJfr();
+        bool enable_share_jfr = context == nullptr ? true : context->EnableShareJfr();
         if (!enable_share_jfr) {
             return;
         }
