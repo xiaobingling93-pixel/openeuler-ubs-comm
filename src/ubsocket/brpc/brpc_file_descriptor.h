@@ -3508,6 +3508,11 @@ private:
             RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to add umq dev, ret %d\n", ret);
             return -1;
         } 
+
+        ret = Context::GetContext()->RegisterAsyncEvent(trans_info);
+        if (ret < 0) {
+            return ret;
+        }
         
         mEidRegistry.RegisterEid(connEid);
         return 0;

@@ -28,7 +28,7 @@
 namespace Brpc {
 
 class Context : public Brpc::ConfigSettings {
-    public:
+public:
     static const uint32_t RECLAIM_INTERVAL = 100;
 
     static ALWAYS_INLINE Context *GetContext()
@@ -135,7 +135,10 @@ class Context : public Brpc::ConfigSettings {
     }
 #endif
 
-    private:
+    /// 注册 info 对应设备的 AE 事件
+    int RegisterAsyncEvent(umq_trans_info_t info);
+
+private:
     void RecordAndSetBrpcAllocator()
     {
         m_alloc_addr_origin = *m_alloc_addr;
@@ -216,6 +219,15 @@ class Context : public Brpc::ConfigSettings {
             return;
         }
 
+        int epfd = OsAPiMgr::GetOriginApi()->epoll_create(1);
+        if (epfd < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create epoll for async events.\n");
+            return;
+        }
+
+        m_asyncEventEpollFd = epfd;
+        m_asyncEventThread = std::thread(&Context::AsyncEventProcess, this);
+
         umq_trans_mode_t transMode = GetTransMode();
         switch (transMode) {
             case UMQ_TRANS_MODE_IB:
@@ -251,8 +263,6 @@ class Context : public Brpc::ConfigSettings {
 
         SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_UMQ);
 
-        m_asyncEventThread = std::thread(&Context::AsyncEventProcess, this, umq_config);
-
         if (m_stats_enable) {
             // Get global statistics manager to invoke construction
             (void)Statistics::GlobalStatsMgr::GetGlobalStatsMgr();
@@ -266,9 +276,14 @@ class Context : public Brpc::ConfigSettings {
 
     virtual ~Context()
     {
+        // 通知 AE 线程关闭
         m_asyncEventThreadStopFlag.store(true);
         if (m_asyncEventThread.joinable()) {
             m_asyncEventThread.join();
+        }
+
+        if (m_asyncEventEpollFd != -1) {
+            OsAPiMgr::GetOriginApi()->close(m_asyncEventEpollFd);
         }
 
         m_socket_fd_trans_mode = SOCKET_FD_TRANS_MODE_UNSET;
@@ -350,7 +365,8 @@ class Context : public Brpc::ConfigSettings {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add umq dev, ret %d\n", ret);
             return -1;
         }
-        return 0;
+
+        return RegisterAsyncEvent(trans_info);
     }
 
     int FindDevName()
@@ -408,7 +424,7 @@ class Context : public Brpc::ConfigSettings {
     // 获得当前进程socketID
     int GetCurrentProcessSocketId();
 
-    void AsyncEventProcess(umq_init_cfg_t cfg);
+    void AsyncEventProcess();
     void AsyncEventHandle(const umq_async_event_t *av);
 
     static const char* CPU_LIST_PREFIX_PATH;
@@ -428,8 +444,11 @@ class Context : public Brpc::ConfigSettings {
     static bool m_ubEnable;
 
     // AE 事件处理
-    std::thread m_asyncEventThread;
+    std::mutex m_asyncEventRegistryMutex;
+    std::map<int, umq_trans_info_t> m_asyncEventRegistry;
+    int m_asyncEventEpollFd = -1;
     std::atomic<bool> m_asyncEventThreadStopFlag{false};
+    std::thread m_asyncEventThread;
 };
 
 }  // namespace Brpc

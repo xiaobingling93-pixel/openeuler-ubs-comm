@@ -237,32 +237,45 @@ int Context::GetCurrentProcessSocketId()
     return GetSocketIdOfCpu(cpu);
 }
 
-void Context::AsyncEventProcess(umq_init_cfg_t cfg)
+int Context::RegisterAsyncEvent(umq_trans_info_t info)
 {
-    int afd = umq_async_event_fd_get(cfg.trans_info);
+    int afd = umq_async_event_fd_get(&info);
     if (afd == UMQ_INVALID_FD) {
         RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get async fd\n");
-        return;
+        return -1;
     }
 
-    int epfd = OsAPiMgr::GetOriginApi()->epoll_create(1);
-    if (epfd < 0) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to create epoll for async events\n");
-        return;
+    {
+        std::lock_guard<std::mutex> guard(m_asyncEventRegistryMutex);
+        
+        auto iter = m_asyncEventRegistry.end();
+        bool inserted = false;
+        std::tie(iter, inserted) = m_asyncEventRegistry.insert(std::make_pair(afd, info));
+        if (!inserted) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "The async fd %d has already been registered.\n", afd);
+            return -1;
+        }
     }
 
-    auto guard = ubsocket::MakeScopeExit([epfd] { OsAPiMgr::GetOriginApi()->close(epfd); });
-
-    struct epoll_event interest = {EPOLLIN};
-    int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epfd, EPOLL_CTL_ADD, afd, &interest);
+    struct epoll_event interest{};
+    interest.events = EPOLLIN;
+    interest.data.fd = afd;
+    int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(m_asyncEventEpollFd, EPOLL_CTL_ADD, afd, &interest);
     if (ret < 0) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to add epoll event\n");
-        return;
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add epoll event to async event epoll set.\n");
+        // 回退
+        std::lock_guard<std::mutex> guard(m_asyncEventRegistryMutex);
+        m_asyncEventRegistry.erase(afd);
+        return -1;
     }
+    return 0;
+}
 
-    struct epoll_event ev[1];
+void Context::AsyncEventProcess()
+{
+    struct epoll_event ev[16];
     while (!m_asyncEventThreadStopFlag.load()) {
-        int nevents = OsAPiMgr::GetOriginApi()->epoll_wait(epfd, ev, 1, 10);
+        int nevents = OsAPiMgr::GetOriginApi()->epoll_wait(m_asyncEventEpollFd, ev, 16, 10);
         if (nevents < 0) {
             if (errno == EINTR) {
                 continue;
@@ -277,12 +290,23 @@ void Context::AsyncEventProcess(umq_init_cfg_t cfg)
             continue;
         }
 
-        umq_async_event_t av;
-        if (umq_get_async_event(cfg.trans_info, &av) == UMQ_SUCCESS) {
-            AsyncEventHandle(&av);
-            umq_ack_async_event(&av);
-        } else {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Spurious wakeup from async fd\n");
+        for (int i = 0; i < nevents; ++i) {
+            const int afd = ev[i].data.fd;
+
+            std::lock_guard<std::mutex> guard(m_asyncEventRegistryMutex);
+            auto iter = m_asyncEventRegistry.find(afd);
+            if (iter == m_asyncEventRegistry.end()) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "The async fd %d has not been registered.\n", afd);
+                continue;
+            }
+
+            umq_async_event_t av;
+            if (umq_get_async_event(&iter->second, &av) == UMQ_SUCCESS) {
+                AsyncEventHandle(&av);
+                umq_ack_async_event(&av);
+            } else {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get async event from async fd %d\n", afd);
+            }
         }
     }
 }
