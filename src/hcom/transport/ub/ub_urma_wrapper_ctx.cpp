@@ -58,8 +58,8 @@ UResult UBContext::Initialize(uint8_t &bandWidth)
     mMaxJfs = mDevAttr->dev_cap.max_jfs_depth;
 
     // get ctp and rtp default SL priority
-    union urma_tp_type_en tp_type_ctp;
-    union urma_tp_type_en tp_type_rtp;
+    union urma_tp_type_en tp_type_ctp {};
+    union urma_tp_type_en tp_type_rtp {};
     tp_type_ctp.bs.ctp = 1;
     tp_type_rtp.bs.rtp = 1;
 
