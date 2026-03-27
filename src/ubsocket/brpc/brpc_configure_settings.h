@@ -16,6 +16,7 @@
 
 #define BRPC_SYM_STR_LEN_MAX       (128)
 #define DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH          (1024)
+#define DEFAULT_MIN_RESERVED_CREDIT          (64)
 #define ENV_VAR_BRPC_ALLOC_SYM     "UBSOCKET_BRPC_ALLOC_SYM"
 #define ENV_VAR_BRPC_DEALLOC_SYM   "UBSOCKET_BRPC_DEALLOC_SYM"
 #define ENV_VAR_READV_UNLIMITED    "UBSOCKET_READV_UNLIMITED"
@@ -24,6 +25,7 @@
 #define ENV_VAR_SHARE_JFR_RX_QUEUE_DEPTH   "UBSOCKET_SHARE_JFR_RX_QUEUE_DEPTH"
 #define ENV_VAR_AUTO_FALLBACK_TCP  "UBSOCKET_AUTO_FALLBACK_TCP"
 #define ENV_VAR_USE_UB_FORCE       "UBSOCKET_USE_UB_FORCE"
+#define ENV_VAR_MIN_RESERVED_CREDIT     "UBSOCKET_MIN_RESERVED_CREDIT"
 
 namespace Brpc{
 
@@ -74,6 +76,11 @@ public:
       uint64_t GetShareJfrRxQueueDepth()
       {
           return m_share_jfr_rx_queue_depth;
+      }
+
+      uint16_t GetMinReservedCredit()
+      {
+          return m_min_reserved_credit;
       }
  
     bool AutoFallbackTCP()
@@ -176,6 +183,12 @@ public:
             m_share_jfr_rx_queue_depth = share_jfr_rx_queue_depth == 0 ? DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH :
                                                                          share_jfr_rx_queue_depth;
         }
+
+        if ((env_ptr = getenv(ENV_VAR_MIN_RESERVED_CREDIT)) != nullptr) {
+            uint64_t min_reserved_credit = static_cast<uint16_t>(atoi(env_ptr));
+            m_min_reserved_credit = min_reserved_credit == 0 ? DEFAULT_MIN_RESERVED_CREDIT :
+                                                                         min_reserved_credit;
+        }
       }
        
       char m_alloc_sym_str[BRPC_SYM_STR_LEN_MAX] = "";
@@ -192,6 +205,7 @@ public:
       char m_enable_share_jfr_str[BOOL_STR_LEN_MAX] = "";
       bool m_enable_share_jfr = true;
       uint64_t m_share_jfr_rx_queue_depth = DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH;
+      uint16_t m_min_reserved_credit = DEFAULT_MIN_RESERVED_CREDIT;
 }; 
    
 }

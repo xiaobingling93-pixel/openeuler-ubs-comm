@@ -30,6 +30,8 @@ namespace Brpc {
 class Context : public Brpc::ConfigSettings {
 public:
     static const uint32_t RECLAIM_INTERVAL = 100;
+    static const uint16_t DEFAULT_INITIAL_CREDIT = 1024;
+    static const uint16_t DEFAULT_MAX_CREDITS_REQUEST = 1024;
 
     static ALWAYS_INLINE Context *GetContext()
     {
@@ -206,6 +208,9 @@ private:
         umq_config.io_lock_free = true;
         umq_config.trans_info_num = 1;
         umq_config.flow_control.use_atomic_window = true;
+        umq_config.flow_control.initial_credit = DEFAULT_INITIAL_CREDIT;
+        umq_config.flow_control.max_credits_request = DEFAULT_MAX_CREDITS_REQUEST;
+        umq_config.flow_control.min_reserved_credit = GetMinReservedCredit();
         umq_config.block_cfg.small_block_size = GetIOBlockType();
         umq_config.trans_info[0].dev_info.assign_mode = UMQ_DEV_ASSIGN_MODE_DUMMY;
         umq_config.trans_info[0].mem_cfg.total_size = GetIOTotalSize();
