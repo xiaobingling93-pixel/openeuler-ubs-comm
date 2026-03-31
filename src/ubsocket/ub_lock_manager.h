@@ -185,10 +185,8 @@ public:
     std::unique_ptr<UbSem> createSem()
     {
         if (sem_registered) {
-            printf("[fzn] use bthread sem\n");
             return sem_factory();
         }
-        printf("[fzn] use pthread sem\n");
         return std::make_unique<DefaultSem>();
     }
 
