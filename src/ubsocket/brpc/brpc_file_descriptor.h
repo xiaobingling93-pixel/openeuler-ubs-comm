@@ -3698,6 +3698,8 @@ private:
             tp_type = UMQ_TP_TYPE_CTP;
         } else if (trans_mode == RC_CTP) {
             tp_type = UMQ_TP_TYPE_CTP;
+        } else {
+            tp_type = UMQ_TP_TYPE_RTP;
         }
 
         umq_route_key_t route;
