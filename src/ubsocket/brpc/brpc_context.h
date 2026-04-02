@@ -35,6 +35,7 @@ public:
 
     static ALWAYS_INLINE Context *GetContext()
     {
+#ifdef UBSOCKET_ENABLE_INTERCEPT
         /* To avoid recursively constructing 'Brpc::Context'
          * .e.g., In the QEMU environment, the following call chain may lead to it.
          * Brpc::Context() -> umq_init() -> urma_init() -> epoll_creat() -> Brpc::Context() */
@@ -46,8 +47,11 @@ public:
          constructing = true;
          static Context context;
          constructing = false;
-
          return &context;
+#else
+         static Context context;
+         return &context;
+#endif
     }
 
     static ALWAYS_INLINE void SetUbEnable()
