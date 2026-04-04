@@ -3937,7 +3937,7 @@ public:
         umq_buf_t *buf[POLL_BATCH_MAX];
         int poll_num = umq_poll(socket_fd_obj->GetLocalUmqHandle(), UMQ_IO_RX, buf, POLL_BATCH_MAX);
         if (poll_num <= 0) {
-            return ::EpollEvent::ProcessEpollEvent(input_event, output_event, use_polling);
+            return 0;
         }
 
         for (int i = 0; i < poll_num; ++i) {
