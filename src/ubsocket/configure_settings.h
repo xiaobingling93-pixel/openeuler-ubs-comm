@@ -306,6 +306,10 @@ protected:
     {
         char *env_ptr;
         if ((env_ptr = getenv(ENV_LOG_USE_PRINTF)) != NULL) {
+            if (strcmp(env_ptr, "true") != 0 && strcmp(env_ptr, "false") != 0) {
+                printf(
+                    "WARNING: Flag 'ubsocket_log_use_printf' has wrong input type. Using default value : false.\n");
+            }
             ReadEnvVar(env_ptr, m_log_use_printf_str, sizeof(m_stats_str));
         }
 
