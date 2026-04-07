@@ -195,6 +195,10 @@ public:
         }
 
         if ((env_ptr = getenv(ENV_VAR_USE_UB_FORCE)) != nullptr) {
+            if (strcmp(env_ptr, "true") != 0 && strcmp(env_ptr, "false") != 0) {
+                printf(
+                    "WARNING: Flag 'ubsocket_ub_force' has wrong input type. Using default value : false.\n");
+            }
             ReadEnvVar(env_ptr, m_use_ub_force_str, sizeof(m_use_ub_force_str));
         }
 
