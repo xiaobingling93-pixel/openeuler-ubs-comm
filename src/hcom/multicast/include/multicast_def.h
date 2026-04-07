@@ -19,6 +19,7 @@ struct MulticastServiceOptions {
     WorkerMode workerGroupMode = NET_BUSY_POLLING; // worker线程工作模式，默认busy_polling
     int8_t workerThreadPriority = 0;               // 线程优先级[-20,19]，19优先级最低，-20优先级最高，同nice值
     std::pair<uint32_t, uint32_t> workerGroupCpuIdsRange = { UINT32_MAX, UINT32_MAX }; // worker绑定的CPU核，默认不绑定
+    UBSHcomNetDriverProtocol protocol = UBSHcomNetDriverProtocol::RDMA;  // 组播driver协议类型，默认是RDMA，当前支持RDMA/TCP
 
     uint32_t qpSendQueueSize = 1024;                // qp发送队列大小
     uint32_t qpRecvQueueSize = 1024;                // qp接收队列大小

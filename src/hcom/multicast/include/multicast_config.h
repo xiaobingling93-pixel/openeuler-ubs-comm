@@ -52,6 +52,8 @@ public:
 
     virtual void SetMaxSubscriberNum(uint32_t maxSubscriberNum) = 0;
     virtual const uint32_t GetMaxSubscriberNum() const = 0;
+
+    virtual UBSHcomNetDriverProtocol GetProtocol() const = 0;
 };
 }
 }

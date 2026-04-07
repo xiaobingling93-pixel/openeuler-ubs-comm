@@ -18,6 +18,7 @@ constexpr uint16_t NO_SUBSCRIBER_EXIST = 501;
 
 std::string g_oobIp = "";
 uint16_t g_oobPort = 9981;
+uint16_t g_driverProtocol = 0;
 std::string g_ipSeg = "192.168.100.0/24";
 int32_t g_dataSize = 2048;
 int16_t g_asyncWorkerCpuId = -1;
@@ -131,6 +132,9 @@ bool CreatePublisherService()
     options.completionQueueDepth = 16384; // 测试8节点8并发需要设置大一些
     options.enableTls = g_enableTls;
     options.cipherSuite = g_cipherSuite;
+    if (g_driverProtocol == 1) {
+        options.protocol = UBSHcomNetDriverProtocol::TCP;
+    }
     g_publisherService = ock::hcom::PublisherService::Create("Publisher", options);
     if (g_publisherService == nullptr) {
         NN_LOG_ERROR("Failed to create service.");
@@ -388,6 +392,7 @@ int main(int argc, char *argv[])
     struct option options[] = {
         {"ip", required_argument, nullptr, 'i'},
         {"port", required_argument, nullptr, 'p'},
+        {"driver", required_argument, nullptr, 'd'},
         {"pingpongtimes", required_argument, nullptr, 't'},
         {"size", required_argument, nullptr, 's'},
         {"cpuId", required_argument, nullptr, 'c'},
@@ -402,6 +407,7 @@ int main(int argc, char *argv[])
     const char *usage = "usage\n"
         "        -i, --ip,                     coord server ip mask, e.g. 10.175.118.1;\n"
         "        -p, --port,                   coord server port, by default 9981; jetty id for UBC, e.g. 998\n"
+        "        -d, --driver,                 multicast driver protocol, 0 means RDMA, 1 means TCP\n"
         "        -t, --pingpongtimes,          ping pong times\n"
         "        -s, --size,                   max data size\n"
         "        -c, --cpuId,                  cpu to bind\n"
@@ -415,7 +421,7 @@ int main(int argc, char *argv[])
     int ret = 0;
     int index = 0;
 
-    std::string str = "i:p:t:s:c:n:w:v:T:C:";
+    std::string str = "i:p:d:t:s:c:n:w:v:T:C:";
     while ((ret = getopt_long(argc, argv, str.c_str(), options, &index)) != -1) {
         switch (ret) {
             case 'i':
@@ -424,6 +430,9 @@ int main(int argc, char *argv[])
                 break;
             case 'p':
                 g_oobPort = static_cast<uint16_t>(strtoul(optarg, nullptr, 0));
+                break;
+            case 'd':
+                g_driverProtocol = static_cast<uint16_t>(strtoul(optarg, nullptr, 0));
                 break;
             case 't':
                 g_pingCount = static_cast<int32_t>(strtoul(optarg, nullptr, 0));
