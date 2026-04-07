@@ -106,8 +106,8 @@ SerResult PublisherServiceImp::ServiceRequestReceived(const UBSHcomNetRequestCon
     }
 
     // ctx和msg都是thread local的变量，在线程销毁（即接收worker线程）的时候会被销毁
-    uint32_t repliedCount = pubCtx->MarkRepliedAndGetReplyCount(subscriberInfo, ctx.Message());
-    if (repliedCount < pubCtx->GetSendCount()) {
+    pubCtx->MarkReplied(subscriberInfo, ctx.Message());
+    if (pubCtx->GetReplyCount() < pubCtx->GetSendCount()) {
         return SER_OK;
     }
 
@@ -262,7 +262,7 @@ SerResult PublisherServiceImp::NewSubscriptionCallback(const std::string &ipPort
 
 SerResult PublisherServiceImp::InitDriver()
 {
-    UBSHcomNetDriver *driver = UBSHcomNetDriver::Instance(UBSHcomNetDriverProtocol::RDMA,
+    UBSHcomNetDriver *driver = UBSHcomNetDriver::Instance(mCfg.GetProtocol(),
         mCfg.GetName(), mCfg.GetStartOobServer());
     if (driver == nullptr) {
         NN_LOG_ERROR("failed to create driver for service " << mCfg.GetName());
@@ -531,7 +531,7 @@ SerResult PublisherServiceImp::CreatePublisher(NetRef<Publisher> &publisher)
 
     if (NN_UNLIKELY(tmpPub->Initialize(reinterpret_cast<uintptr_t>(mCtxMemPool.Get()),
         reinterpret_cast<uintptr_t>(mPubCtxMemPool.Get()), reinterpret_cast<uintptr_t>(mPeriodicMgr.Get()),
-        mCtxStoreCapacity))) {
+        mCtxStoreCapacity, mCfg.GetProtocol()))) {
         NN_LOG_ERROR("Failed to initialize publisher");
         delete tmpPub;
         return SER_NEW_OBJECT_FAILED;

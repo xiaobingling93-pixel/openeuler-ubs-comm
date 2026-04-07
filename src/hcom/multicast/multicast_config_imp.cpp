@@ -12,7 +12,7 @@ constexpr uint16_t MAX_TIME_OUT_DETECT_THREAD_NUM = 4;
 
 bool MulticastConfigImp::Init(const std::string &name, const MulticastServiceOptions &opt)
 {
-    mOptions.protocol = UBSHcomNetDriverProtocol::RDMA;
+    mOptions.protocol = opt.protocol;
     mOptions.name = name;
     mOptions.maxSendRecvDataSize = opt.maxSendRecvDataSize;
     mOptions.maxSendRecvDataCount = opt.maxSendRecvDataCount;
@@ -187,6 +187,8 @@ bool MulticastConfigImp::FillNetDriverOpt(ock::hcom::UBSHcomNetDriverOptions &dr
     driverOpt.prePostReceiveSizePerQP = mOptions.qpPrePostSize;
     driverOpt.maxConnectionNum = mOptions.maxConnCount;
     driverOpt.qpBatchRePostSize = mOptions.qpBatchRePostSize;
+
+    driverOpt.tcpSendZCopy = true;
     return true;
 }
 
@@ -258,6 +260,11 @@ void MulticastConfigImp::SetPublisherWkrGroupNo(uint8_t groupNo)
 const uint8_t MulticastConfigImp::GetPublisherWkrGroupNo() const
 {
     return mOptions.publisherGroupNo;
+}
+
+UBSHcomNetDriverProtocol MulticastConfigImp::GetProtocol() const
+{
+    return mOptions.protocol;
 }
 }
 }

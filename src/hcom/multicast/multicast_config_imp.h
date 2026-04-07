@@ -84,6 +84,8 @@ public:
     const uint32_t GetMaxSubscriberNum() const override;
 
     void AddWorkerGroup(UBSHcomWorkerGroupInfo &groupInfo);
+
+    UBSHcomNetDriverProtocol GetProtocol() const override;
 public:
     /*****************************************************************
      * 仅在内部类中使用，不对外暴露
