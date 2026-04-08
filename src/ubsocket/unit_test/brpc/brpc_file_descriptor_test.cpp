@@ -83,6 +83,7 @@ void BrpcFileDescriptorTest::SetUp()
     // - 第一个参数：环境变量名
     // - 第二个参数：环境变量值
     // - 第三个参数：是否覆盖已有值（1 表示覆盖，0 表示不覆盖）
+    setenv("UBSOCKET_USE_UB_FORCE", "true", 1);
     setenv("UBSOCKET_TRANS_MODE", "UB", 1);
 
     // 加载日志
@@ -96,6 +97,7 @@ void BrpcFileDescriptorTest::SetUp()
 
 void BrpcFileDescriptorTest::TearDown()
 {
+    unsetenv("UBSOCKET_USE_UB_FORCE");
     unsetenv("UBSOCKET_TRANS_MODE");
     GlobalMockObject::verify();
 }
