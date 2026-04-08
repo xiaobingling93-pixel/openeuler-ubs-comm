@@ -593,12 +593,12 @@ public:
         }
         m_conn_info.conn_eid = connEid;
 
-        // 1. 用户直接指定普通设备建链，不重试、可降级
-        // 2. 用户指定 bonding 设备建链，但如果是节点内回环场景，不重试、可降级
-        // 3. 用户指定 bonding 设备建链，跨节点场景返回 retryable 错误，优先重试，如果重试仍旧失败则降级
         Context *context = Context::GetContext();
         umq_eid_t localEid = context->GetDevSrcEid();
 
+        // 1. 用户直接指定普通设备建链，不重试、可降级
+        // 2. 用户指定 bonding 设备建链，但如果是节点内回环场景，不重试、可降级
+        // 3. 用户指定 bonding 设备建链，跨节点场景返回 retryable 错误，优先重试，如果重试仍旧失败则降级
         bool ok = false;
         bool degradable = false;
         ubsocket::Error ackRet;
@@ -612,12 +612,8 @@ public:
                     break;
 
                 case UBHandshakeState::kSTART:
+                    // 作为客户端，它的 Degradable 属性对于是否降级不生效. Degradable 仅当角色为服务端时生效
                     ackRet = DoUbConnect(connEid);
-                    if (Degradable(ackRet) && !Context::GetContext()->Degradable()) {
-                        ackRet = ackRet - ubsocket::Error::kDEGRADABLE;
-                        RPC_ADPT_VLOG_INFO("ubsocket can be degraded to TCP, but users turn UBSOCKET_DEGRADE off.\n");
-                    }
-
                     if (!IsOk(ackRet)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
                                           "Failed to finish ub bind in connect, Peer eid:" EID_FMT
@@ -639,8 +635,8 @@ public:
                         return -1;
                     }
 
-                    // 记录两端是否都支持降级
-                    degradable = Degradable(ackRet) || Degradable(peerRet);
+                    // 如果服务端支持降级则客户端需要配合
+                    degradable = Degradable(peerRet);
                     if (context->IsBonding() && connEid != localEid && (Retryable(ackRet) || Retryable(peerRet))) {
                         state = UBHandshakeState::kRETRY;
                     } else if (degradable) {
@@ -686,11 +682,6 @@ public:
 
                     // 保留在 CheckDevAdd 阶段时的错误
                     ackRet = ackRet | DoUbConnect(connEid);
-                    if (Degradable(ackRet) && !Context::GetContext()->Degradable()) {
-                        ackRet = ackRet - ubsocket::Error::kDEGRADABLE;
-                        RPC_ADPT_VLOG_INFO("ubsocket can be degraded to TCP, but users turn UBSOCKET_DEGRADE off.\n");
-                    }
-
                     if (!IsOk(ackRet)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
                                           "Failed to finish ub bind in connect, Peer eid:" EID_FMT
@@ -712,7 +703,6 @@ public:
                         return -1;
                     }
 
-                    degradable = Degradable(ackRet) || Degradable(peerRet);
                     if (degradable) {
                         state = UBHandshakeState::kDEGRADE;
                     } else if (!IsOk(ackRet) || !IsOk(peerRet)) {
@@ -3056,7 +3046,6 @@ private:
                     ackRet = DoUbAccept(new_fd, connEid, socket_fd_obj);
                     if (Degradable(ackRet) && !Context::GetContext()->Degradable()) {
                         ackRet = ackRet - ubsocket::Error::kDEGRADABLE;
-                        RPC_ADPT_VLOG_INFO("ubsocket can be degraded to TCP, but users turn UBSOCKET_DEGRADE off.\n");
                     }
 
                     if (!IsOk(ackRet)) {
@@ -3081,8 +3070,8 @@ private:
                         return ubsocket::Error::kUBSOCKET_TCP_EXCHANGE;
                     }
 
-                    // 记录两端是否都支持降级
-                    degradable = Degradable(ackRet) || Degradable(peerRet);
+                    // 服务端判断是否可降级
+                    degradable = Degradable(ackRet);
                     if (context->IsBonding() && connEid != localEid && (Retryable(ackRet) || Retryable(peerRet))) {
                         state = UBHandshakeState::kRETRY;
                     } else if (degradable) {
@@ -3108,7 +3097,7 @@ private:
                     }
 
                     otherRouteMessage.ub_handshake_state = UBHandshakeState::kRETRY;
-                    otherRouteMessage.other_route = connRoute;
+                    otherRouteMessage.other_route = otherConnRoute;
                     if (SendSocketData(new_fd, &otherRouteMessage, sizeof(otherRouteMessage),
                                        CONTROL_PLANE_TIMEOUT_MS) != sizeof(otherRouteMessage)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
@@ -3120,11 +3109,6 @@ private:
 
                     connEid = otherConnRoute.src_eid;
                     ackRet = DoUbAccept(new_fd, connEid, socket_fd_obj);
-                    if (Degradable(ackRet) && !Context::GetContext()->Degradable()) {
-                        ackRet = ackRet - ubsocket::Error::kDEGRADABLE;
-                        RPC_ADPT_VLOG_INFO("ubsocket can be degraded to TCP, but users turn UBSOCKET_DEGRADE off.\n");
-                    }
-
                     if (!IsOk(ackRet)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
                                           "Failed to finish ub bind in retry accept, Peer eid:" EID_FMT
@@ -3148,7 +3132,6 @@ private:
                         return ubsocket::Error::kUBSOCKET_TCP_EXCHANGE;
                     }
 
-                    degradable = Degradable(ackRet) || Degradable(peerRet);
                     if (degradable) {
                         state = UBHandshakeState::kDEGRADE;
                     } else if (!IsOk(ackRet) || !IsOk(peerRet)) {
