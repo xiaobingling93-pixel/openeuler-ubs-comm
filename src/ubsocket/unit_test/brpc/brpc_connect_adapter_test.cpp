@@ -14,6 +14,7 @@ public:
     void SetUp() override
     {
         setenv("UBSOCKET_USE_BRPC_ZCOPY", "false", 1);
+        setenv("UBSOCKET_USE_UB_FORCE", "true", 1);
         setenv("UBSOCKET_TRANS_MODE", "UB", 1);
         RpcAdptSetLogCtx(ubsocket::UTIL_VLOG_LEVEL_INFO);
         int fd = 1;
@@ -26,6 +27,7 @@ public:
     void TearDown() override
     {
         unsetenv("UBSOCKET_USE_BRPC_ZCOPY");
+        unsetenv("UBSOCKET_USE_UB_FORCE");
         unsetenv("UBSOCKET_TRANS_MODE");
         if (socketfd != nullptr) {
             delete socketfd;
