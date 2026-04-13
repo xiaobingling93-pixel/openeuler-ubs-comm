@@ -527,6 +527,7 @@ static int umq_ub_get_namespace(char *remote_namespace, uint32_t namespace_buf_s
 
     buf[len++] = '\0';
     if (len > namespace_buf_size) {
+        errno = UMQ_ERR_ENOMEM;
         UMQ_VLOG_ERR(VLOG_UMQ, "namespace buf size insufficient, max buf size: %u, but real namespace size: %u\n",
             namespace_buf_size, len);
         return UMQ_FAIL;
@@ -545,7 +546,7 @@ static ALWAYS_INLINE uint32_t umq_ub_dev_info_serialize(
     if (left_buf_size <
         (uint32_t)sizeof(umq_ub_bind_dev_info_t) + (uint32_t)sizeof(urpc_tlv_head_t) + UMQ_UB_NAMESPACE_SIZE) {
         errno = UMQ_ERR_ENOMEM;
-        UMQ_VLOG_ERR(VLOG_UMQ, "bind info size insufficient, version info cannot serialize, errno: %d\n", errno);
+        UMQ_VLOG_ERR(VLOG_UMQ, "bind info size insufficient, dev info cannot serialize, errno: %d\n", errno);
         return 0;
     }
     urpc_tlv_head_t *info_tlv_head = (urpc_tlv_head_t *)(uintptr_t)bind_info_buf;
@@ -670,33 +671,33 @@ uint32_t umq_ub_bind_info_serialize(ub_queue_t *queue, uint8_t *bind_info, uint3
 int umq_ub_bind_info_deserialize(uint8_t *bind_info_buf, uint32_t bind_info_size, umq_ub_bind_info_t *bind_info)
 {
     if (bind_info_size < (uint32_t)sizeof(urpc_tlv_head_t)) {
-        UMQ_VLOG_ERR(VLOG_UMQ, "bind info size insufficient\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "bind info size %u insufficient\n", bind_info_size);
         return -UMQ_ERR_EINVAL;
     }
 
     uint32_t left_info_size = bind_info_size;
     urpc_tlv_head_t *info_tlv_head = (urpc_tlv_head_t *)(uintptr_t)bind_info_buf;
     if (info_tlv_head->len > (UINT32_MAX - (uint32_t)sizeof(urpc_tlv_head_t))) {
-        UMQ_VLOG_ERR(VLOG_UMQ, "bind info size insufficient\n");
+        UMQ_VLOG_ERR(VLOG_UMQ, "bind info size %u exceeds the maximum value\n", info_tlv_head->len);
         return -UMQ_ERR_EINVAL;
     }
     while (left_info_size >= urpc_tlv_get_total_len(info_tlv_head)) {
         switch (info_tlv_head->type) {
             case UMQ_UB_BIND_INFO_TYPE_VERSION:
                 if (info_tlv_head->len < (uint32_t)sizeof(umq_ub_bind_version_info_t)) {
-                    UMQ_VLOG_ERR(VLOG_UMQ, "bind version info size insufficient\n");
+                    UMQ_VLOG_ERR(VLOG_UMQ, "bind version info size %u insufficient\n", info_tlv_head->len);
                     return -UMQ_ERR_EINVAL;
                 }
                 bind_info->version_info = (umq_ub_bind_version_info_t *)(uintptr_t)info_tlv_head->value;
                 break;
             case UMQ_UB_BIND_INFO_TYPE_DEV:
                 if (info_tlv_head->len < (uint32_t)sizeof(umq_ub_bind_dev_info_t)) {
-                    UMQ_VLOG_ERR(VLOG_UMQ, "bind dev info size insufficient\n");
+                    UMQ_VLOG_ERR(VLOG_UMQ, "bind dev info size %u insufficient\n", info_tlv_head->len);
                     return -UMQ_ERR_EINVAL;
                 }
                 bind_info->dev_info = (umq_ub_bind_dev_info_t *)(uintptr_t)info_tlv_head->value;
                 if (info_tlv_head->len != (sizeof(umq_ub_bind_dev_info_t) + bind_info->dev_info->namespace_len)) {
-                    UMQ_VLOG_ERR(VLOG_UMQ, "bind dev info namespace_len insufficient\n");
+                    UMQ_VLOG_ERR(VLOG_UMQ, "bind dev info namespace_len %u insufficient\n", info_tlv_head->len);
                     return -UMQ_ERR_EINVAL;
                 }
                 size_t len = strnlen(bind_info->dev_info->bind_namespace, bind_info->dev_info->namespace_len);
@@ -707,14 +708,14 @@ int umq_ub_bind_info_deserialize(uint8_t *bind_info_buf, uint32_t bind_info_size
                 break;
             case UMQ_UB_BIND_INFO_TYPE_QUEUE:
                 if (info_tlv_head->len < (uint32_t)sizeof(umq_ub_bind_queue_info_t)) {
-                    UMQ_VLOG_ERR(VLOG_UMQ, "bind queue info size insufficient\n");
+                    UMQ_VLOG_ERR(VLOG_UMQ, "bind queue info size %u insufficient\n", info_tlv_head->len);
                     return -UMQ_ERR_EINVAL;
                 }
                 bind_info->queue_info = (umq_ub_bind_queue_info_t *)(uintptr_t)info_tlv_head->value;
                 break;
             case UMQ_UB_BIND_INFO_TYPE_FC:
                 if (info_tlv_head->len < (uint32_t)sizeof(umq_ub_bind_fc_info_t)) {
-                    UMQ_VLOG_ERR(VLOG_UMQ, "bind flow control info size insufficient\n");
+                    UMQ_VLOG_ERR(VLOG_UMQ, "bind flow control info size %u insufficient\n", info_tlv_head->len);
                     return -UMQ_ERR_EINVAL;
                 }
                 bind_info->fc_info = (umq_ub_bind_fc_info_t *)(uintptr_t)info_tlv_head->value;
@@ -730,7 +731,7 @@ int umq_ub_bind_info_deserialize(uint8_t *bind_info_buf, uint32_t bind_info_size
         }
         info_tlv_head = urpc_tlv_get_next_element(info_tlv_head);
         if (info_tlv_head->len > (UINT32_MAX - (uint32_t)sizeof(urpc_tlv_head_t))) {
-            UMQ_VLOG_ERR(VLOG_UMQ, "bind info size insufficient\n");
+            UMQ_VLOG_ERR(VLOG_UMQ, "bind info size %u exceeds the maximum value\n", info_tlv_head->len);
             return -UMQ_ERR_EINVAL;
         }
     }
@@ -1592,7 +1593,7 @@ void umq_ub_queue_ctx_list_remove(urpc_list_t *qctx_node)
 
 int umq_ub_id_allocator_init(void)
 {
-    return util_id_allocator_init(&g_umq_ub_id_allocator, UMQ_MAX_ID_NUM, 1);
+    return util_id_allocator_init(&g_umq_ub_id_allocator, UMQ_MAX_MSG_ID_NUM, 1);
 }
 
 void umq_ub_id_allocator_uninit(void)
@@ -1650,9 +1651,7 @@ umq_buf_t *umq_ub_read_ctx_create(ub_queue_t *queue, umq_imm_head_t *umq_imm_hea
         return NULL;
     }
     umq_buf_pro_t *buf_pro = (umq_buf_pro_t *)ctx_buf->qbuf_ext;
-    umq_ub_imm_t imm_temp = {.ub_plus = {.umq_private = UMQ_UB_IMM_PRIVATE,
-                                         .type = IMM_TYPE_UB_PLUS,
-                                         .sub_type = IMM_TYPE_REVERSE_PULL_MEM_DONE}};
+    umq_ub_imm_t imm_temp = {.ub_plus = {.type = IMM_TYPE_REVERSE_PULL_MEM_DONE}};
     buf_pro->imm_data = imm_temp.value;
     user_ctx_t *user_ctx = (user_ctx_t *)ctx_buf->buf_data;
 
@@ -1679,8 +1678,7 @@ umq_buf_t *umq_ub_read_ctx_create(ub_queue_t *queue, umq_imm_head_t *umq_imm_hea
 
 static ALWAYS_INLINE int umq_ub_import_mem_done(ub_queue_t *queue, uint16_t mempool_id)
 {
-    umq_ub_imm_t imm = { .mem_import ={ .umq_private = UMQ_UB_IMM_PRIVATE,
-        .type = IMM_TYPE_MEM, .sub_type = IMM_TYPE_MEM_IMPORT_DONE, .mempool_id = mempool_id} };
+    umq_ub_imm_t imm = { .mem_import ={.type = IMM_TYPE_MEM_IMPORT_DONE, .mempool_id = mempool_id} };
     uint16_t max_tx = umq_ub_window_dec(&queue->flow_control, queue, 1);
     if (max_tx == 0) {
         UMQ_LIMIT_VLOG_ERR(VLOG_UMQ, "eid: " EID_FMT ", jetty_id: %u, flow control window lack\n",
@@ -1920,15 +1918,13 @@ FREE_CTX_BUF:
 static int process_send_imm(umq_buf_t *rx_buf, umq_ub_imm_t imm, uint64_t umqh)
 {
     int ret = UMQ_SUCCESS;
-    if (imm.bs.umq_private == 0) {
+    if (imm.bs.type == IMM_TYPE_USER) {
         umq_buf_pro_t *buf_pro = (umq_buf_pro_t *)rx_buf->qbuf_ext;
         buf_pro->imm_data = imm.value;
         return UMQ_SUCCESS;
     }
-    if (imm.bs.type != IMM_TYPE_UB_PLUS) {
-        return ret;
-    }
-    if (imm.ub_plus.sub_type == IMM_TYPE_REVERSE_PULL_MEM) {
+
+    if (imm.bs.type == IMM_TYPE_REVERSE_PULL_MEM) {
         if (umq_ub_data_plan_import_mem(umqh, rx_buf, imm.ub_plus.msg_num, true) != UMQ_SUCCESS) {
             UMQ_LIMIT_VLOG_ERR(VLOG_UMQ, "import mem failed\n");
             umq_buf_free(rx_buf); // release rx
@@ -1941,7 +1937,7 @@ static int process_send_imm(umq_buf_t *rx_buf, umq_ub_imm_t imm, uint64_t umqh)
         }
         umq_buf_free(rx_buf); // release rx
         ret = UMQ_CONTINUE_FLAG;
-    } else if (imm.ub_plus.sub_type == IMM_TYPE_REVERSE_PULL_MEM_FREE) {
+    } else if (imm.bs.type == IMM_TYPE_REVERSE_PULL_MEM_FREE) {
         uint16_t msg_id = (uint16_t)(imm.ub_plus.msg_id);
         ub_queue_t *queue = (ub_queue_t *)(uintptr_t)umqh;
         if (msg_id != 0 && queue->addr_list != NULL) {
@@ -1963,10 +1959,10 @@ static int process_send_imm(umq_buf_t *rx_buf, umq_ub_imm_t imm, uint64_t umqh)
 static int process_write_imm(umq_buf_t *rx_buf, umq_ub_imm_t imm, uint64_t umqh)
 {
     int ret = UMQ_SUCCESS;
-    if (imm.bs.umq_private == 0) {
+    if (imm.bs.type == IMM_TYPE_USER) {
         umq_buf_pro_t *buf_pro = (umq_buf_pro_t *)(uintptr_t)rx_buf->qbuf_ext;
         buf_pro->imm_data = imm.value;
-    } else if (imm.bs.type == IMM_TYPE_MEM && imm.mem_import.sub_type == IMM_TYPE_MEM_IMPORT_DONE) {
+    } else if (imm.bs.type == IMM_TYPE_MEM_IMPORT_DONE) {
         ub_queue_t *queue = (ub_queue_t *)(uintptr_t)umqh;
         if (imm.mem_import.mempool_id >= UMQ_MAX_TSEG_NUM) {
             UMQ_LIMIT_VLOG_ERR(VLOG_UMQ, "umq ub mempool_id: %u invalid\n", imm.mem_import.mempool_id);
@@ -1996,10 +1992,7 @@ static inline int process_imm_msg(uint64_t umqh_tp, umq_buf_t *buf, urma_cr_t *c
 
 static int umq_ub_read_done(ub_queue_t *queue, uint16_t msg_id)
 {
-    umq_ub_imm_t imm = {.ub_plus = {.umq_private = UMQ_UB_IMM_PRIVATE,
-                                    .type = IMM_TYPE_UB_PLUS,
-                                    .sub_type = IMM_TYPE_REVERSE_PULL_MEM_FREE,
-                                    .msg_id = msg_id}};
+    umq_ub_imm_t imm = {.ub_plus = {.type = IMM_TYPE_REVERSE_PULL_MEM_FREE, .msg_id = msg_id}};
 
     urma_sge_t sge = {
         .tseg = queue->dev_ctx->tseg_list[UMQ_QBUF_DEFAULT_MEMPOOL_ID],
@@ -2083,8 +2076,7 @@ int umq_ub_dequeue_plus_with_poll_tx(ub_queue_t *queue, urma_cr_t *cr, umq_buf_t
         tx_buf[qbuf_cnt] = (umq_buf_t *)(uintptr_t)cr[i].user_ctx;
         umq_buf_pro_t *buf_pro = (umq_buf_pro_t *)(tx_buf[qbuf_cnt])->qbuf_ext;
         umq_ub_imm_t imm = {.value = buf_pro->imm_data};
-        if (imm.bs.type == IMM_TYPE_UB_PLUS && imm.bs.umq_private == UMQ_UB_IMM_PRIVATE &&
-            imm.ub_plus.sub_type == IMM_TYPE_REVERSE_PULL_MEM_DONE) {
+        if (imm.bs.type == IMM_TYPE_REVERSE_PULL_MEM_DONE) {
             umq_ub_rev_pull_tx_cqe(queue, tx_buf[qbuf_cnt], buf, &qbuf_cnt, &return_rx_cnt);
             continue;
         }
@@ -2195,7 +2187,7 @@ static int umq_ub_send_big_data(ub_queue_t *queue, umq_buf_t **buffer)
     // In the tx direction, user_ctx needs to initialize imm data ub_plus type
     umq_buf_pro_t *buf_pro = (umq_buf_pro_t *)send_buf->qbuf_ext;
     umq_ub_imm_t imm_temp = {
-        .ub_plus = {.umq_private = UMQ_UB_IMM_PRIVATE, .type = IMM_TYPE_UB_PLUS, .sub_type = IMM_TYPE_UB_PLUS_DEFAULT}
+        .ub_plus = {.type = IMM_TYPE_UB_PLUS_DEFAULT}
     };
     buf_pro->imm_data = imm_temp.value;
     uint16_t msg_id = util_id_allocator_get(&g_umq_ub_id_allocator);
@@ -2246,7 +2238,10 @@ static int umq_ub_send_big_data(ub_queue_t *queue, umq_buf_t **buffer)
         (*buffer) = QBUF_LIST_NEXT((*buffer));
         ++buf_index;
     }
-
+    if (buf_index >= UMQ_MAX_MSG_ID_NUM) {
+        UMQ_LIMIT_VLOG_ERR(VLOG_UMQ, "eid: " EID_FMT ", jetty_id: %u, the buf index [%d] "
+            "exceeds the maximum limit\n", EID_ARGS(*eid), id, buf_index);
+    }
     umq_imm_head->mem_interval = get_mem_interval(max_data_size);
 
     uint64_t user_ctx = (uint64_t)(uintptr_t)send_buf;
@@ -2254,9 +2249,7 @@ static int umq_ub_send_big_data(ub_queue_t *queue, umq_buf_t **buffer)
     sge.len = sizeof(umq_imm_head_t) +
         buf_index * sizeof(ub_ref_sge_t) + umq_imm_head->mempool_num * sizeof(ub_import_mempool_info_t);
     sge.tseg = queue->dev_ctx->tseg_list[send_buf->mempool_id];
-    umq_ub_imm_t imm = {.ub_plus = {.umq_private = UMQ_UB_IMM_PRIVATE,
-                                    .type = IMM_TYPE_UB_PLUS,
-                                    .sub_type = IMM_TYPE_REVERSE_PULL_MEM,
+    umq_ub_imm_t imm = {.ub_plus = {.type = IMM_TYPE_REVERSE_PULL_MEM,
                                     .msg_id = msg_id,
                                     .msg_num = (uint16_t)buf_index}};
     int ret = umq_ub_send_imm(queue, imm.value, &sge, user_ctx);
@@ -2682,7 +2675,7 @@ void umq_ub_enqueue_plus_with_poll_tx(ub_queue_t *queue, umq_buf_t **buf)
         buf[qbuf_cnt]->status = (umq_buf_status_t)cr[i].status;
         umq_buf_pro_t *buf_pro = (umq_buf_pro_t *)buf[qbuf_cnt]->qbuf_ext;
         umq_ub_imm_t imm = {.value = buf_pro->imm_data};
-        if (imm.bs.type == IMM_TYPE_UB_PLUS && imm.ub_plus.sub_type == IMM_TYPE_REVERSE_PULL_MEM_DONE) {
+        if (imm.bs.type == IMM_TYPE_REVERSE_PULL_MEM_DONE) {
             user_ctx_t *user_ctx = (user_ctx_t *)buf[qbuf_cnt]->buf_data;
             user_ctx->wr_cnt++;
             if (user_ctx->wr_cnt == user_ctx->wr_total) {
