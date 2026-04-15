@@ -34,6 +34,7 @@ bool MulticastConfigImp::Init(const std::string &name, const MulticastServiceOpt
     mOptions.qpBatchRePostSize = opt.qpBatchRePostSize;
     mOptions.enableTls = opt.enableTls;
     mOptions.cipherSuite = opt.cipherSuite;
+    mOptions.periodicCpuId = opt.periodicCpuId;
     return true;
 }
 
@@ -189,6 +190,7 @@ bool MulticastConfigImp::FillNetDriverOpt(ock::hcom::UBSHcomNetDriverOptions &dr
     driverOpt.qpBatchRePostSize = mOptions.qpBatchRePostSize;
 
     driverOpt.tcpSendZCopy = true;
+    driverOpt.tcpEpollLT = true;
     return true;
 }
 
@@ -260,6 +262,16 @@ void MulticastConfigImp::SetPublisherWkrGroupNo(uint8_t groupNo)
 const uint8_t MulticastConfigImp::GetPublisherWkrGroupNo() const
 {
     return mOptions.publisherGroupNo;
+}
+
+void MulticastConfigImp::SetPeriodicCpuId(int cpuId)
+{
+    mOptions.periodicCpuId = cpuId;
+}
+
+const int MulticastConfigImp::GetPeriodicCpuId() const
+{
+    return mOptions.periodicCpuId;
 }
 
 UBSHcomNetDriverProtocol MulticastConfigImp::GetProtocol() const

@@ -350,14 +350,15 @@ NResult NetAsyncEndpointSock::PostSend(uint16_t opCode, const UBSHcomNetTransReq
 NResult NetAsyncEndpointSock::PostSendRawNoCpy(const UBSHcomNetTransRequest &request, uint32_t seqNo)
 {
     NResult result = NN_OK;
+    if (NN_UNLIKELY((result = StateValidation(mState, mId, mDriver, mSock)) != NN_OK)) {
+        NN_LOG_ERROR("Sock failed to async post send raw no copy as state validation failed");
+        return result;
+    }
 
-    UBSHcomNetTransOpInfo opInfo(seqNo, 0, 0, 0);
     UBSHcomNetTransHeader header{};
     header.immData = 1;
-    header.seqNo = opInfo.seqNo == 0 ? NextSeq() : opInfo.seqNo;
+    header.seqNo = seqNo;
     header.flags = NTH_TWO_SIDE;
-    header.timeout = opInfo.timeout;
-    header.errorCode = opInfo.errorCode;
     header.dataLength = request.size;
 
     /* finally fill header crc */

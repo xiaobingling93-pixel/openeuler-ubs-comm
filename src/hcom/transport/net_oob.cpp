@@ -357,6 +357,7 @@ NResult OOBTCPServer::Start()
         if (pthread_setaffinity_np(mAcceptThread.native_handle(), sizeof(cpuSet), &cpuSet) != 0) {
             NN_LOG_WARN("Unable to bind net oob server " << thrName << " to cpu " << mCpuId);
         }
+        NN_LOG_INFO("Bind net oob server " << thrName << " to cpu " << mCpuId);
     }
 
     while (!mThreadStarted.load()) {

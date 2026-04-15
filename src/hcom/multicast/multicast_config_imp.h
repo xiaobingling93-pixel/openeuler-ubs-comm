@@ -36,6 +36,7 @@ struct MulticastServiceOptionsInner {
     uint32_t qpBatchRePostSize = 10;
     bool enableTls = true;
     CipherSuite cipherSuite = AES_GCM_128;
+    int periodicCpuId = -1;
 };
 
 class MulticastConfigImp : public MulticastConfig {
@@ -82,6 +83,9 @@ public:
 
     void SetMaxSubscriberNum(uint32_t maxSubscriberNum) override;
     const uint32_t GetMaxSubscriberNum() const override;
+
+    void SetPeriodicCpuId(int cpuId) override;
+    const int GetPeriodicCpuId() const override;
 
     void AddWorkerGroup(UBSHcomWorkerGroupInfo &groupInfo);
 
