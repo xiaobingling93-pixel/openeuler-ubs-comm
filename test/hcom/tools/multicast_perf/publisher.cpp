@@ -132,6 +132,7 @@ bool CreatePublisherService()
     options.completionQueueDepth = 16384; // 测试8节点8并发需要设置大一些
     options.enableTls = g_enableTls;
     options.cipherSuite = g_cipherSuite;
+    options.periodicCpuId = -1;  // 实际业务根据需要绑定超时定时器线程cpuId
     if (g_driverProtocol == 1) {
         options.protocol = UBSHcomNetDriverProtocol::TCP;
     }
@@ -148,7 +149,7 @@ bool CreatePublisherService()
     std::string url = "tcp://" + g_oobIp + ":" + std::to_string(g_oobPort);
 
     g_publisherService->GetConfig().SetDeviceIpMask({ g_ipSeg });
-    g_publisherService->Bind(url, NewSubscriptionCallBack);
+    g_publisherService->Bind(url, NewSubscriptionCallBack, -1);
     g_publisherService->RegisterBrokenHandler(PublisherSubscriberEpBroken);
 
     if (g_enableTls) {

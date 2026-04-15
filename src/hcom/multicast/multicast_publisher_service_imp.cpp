@@ -114,7 +114,7 @@ SerResult PublisherServiceImp::ServiceRequestReceived(const UBSHcomNetRequestCon
     MultiCastServiceTimer *timer = nullptr;
     if (NN_UNLIKELY(mPublisher->mCtxStore->GetSeqNoAndRemove(netSeqNo.wholeSeq, timer) != SER_OK)) {
         HcomSeqNo dumpSeq(netSeqNo.wholeSeq);
-        NN_LOG_ERROR("publisher fetch " << dumpSeq.ToString() << " context failed");
+        NN_LOG_WARN("publisher fetch " << dumpSeq.ToString() << " context failed");
         return SER_ERROR;
     }
     timer->RunCallBack(*pubCtx);
@@ -312,8 +312,13 @@ SerResult PublisherServiceImp::CreateResource(uint32_t threadNum)
         return SER_INVALID_PARAM;
     }
 
+    int cpuId = -1;
+    if (GetConfig().GetPeriodicCpuId() > 0) {
+        cpuId = GetConfig().GetPeriodicCpuId();
+    }
+
     MultiCastPeriodicManagerPtr periodicMgr =
-        new (std::nothrow) MultiCastPeriodicManager(NN_NO1, GetConfig().GetName());
+        new (std::nothrow) MultiCastPeriodicManager(NN_NO1, GetConfig().GetName(), cpuId);
     if (NN_UNLIKELY(periodicMgr.Get() == nullptr)) {
         NN_LOG_ERROR("Create periodic manager failed");
         return SER_NEW_OBJECT_FAILED;
@@ -468,7 +473,8 @@ void PublisherServiceImp::Stop()
     mStarted = false;
 }
 
-SerResult PublisherServiceImp::Bind(const std::string &listenerUrl, const NewSubscriptionHandler &handler)
+SerResult PublisherServiceImp::Bind(const std::string &listenerUrl,
+                                    const NewSubscriptionHandler &handler, const int cpuId)
 {
     if (NN_UNLIKELY(listenerUrl.empty())) {
         NN_LOG_ERROR("Invalid url: " << listenerUrl);
@@ -491,13 +497,18 @@ SerResult PublisherServiceImp::Bind(const std::string &listenerUrl, const NewSub
         return SER_INVALID_PARAM;
     }
 
+    int listenCpuId = -1;
+    if (cpuId > 0) {
+        listenCpuId = cpuId;
+    }
+
     mCfg.SetStartOobServer(true);
     mCfg.SetOobType(NET_OOB_TCP);
     mNewSubScriptionHandler = handler;
-    return AddTcpOobListener(url);
+    return AddTcpOobListener(url, listenCpuId);
 }
 
-SerResult PublisherServiceImp::AddTcpOobListener(const std::string &url, uint16_t workerCount)
+SerResult PublisherServiceImp::AddTcpOobListener(const std::string &url, int cpuId, uint16_t workerCount)
 {
     std::string ip;
     uint16_t port;
@@ -507,7 +518,7 @@ SerResult PublisherServiceImp::AddTcpOobListener(const std::string &url, uint16_
     }
 
     UBSHcomNetOobListenerOptions option;
-    if (NN_UNLIKELY(!option.Set(ip, port, workerCount))) {
+    if (NN_UNLIKELY(!option.SetWithCpuId(ip, port, workerCount, cpuId))) {
         NN_LOG_ERROR("Oob Tcp listener set failed");
         return SER_INVALID_PARAM;
     }

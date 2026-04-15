@@ -31,6 +31,7 @@ struct MulticastServiceOptions {
     bool enableTls = true;                          // 是否开启TLS认证及加密传输
     CipherSuite cipherSuite = AES_GCM_128;          // 加密套件，默认使用AES_GCM_128
                                                     // 另外支持AES_GCM_256, AES_CCM_128, CHACHA20_POLY1305
+    int periodicCpuId = -1;                         // 发布者超时定时器线程绑定的cpuId
 };
 
 struct MulticastHeartBeatOptions {

@@ -83,51 +83,15 @@ SResult SockWorker::PostSend(Sock *sock, SockTransHeader &header, const UBSHcomN
 
 SResult SockWorker::PostSendNoCpy(Sock *sock, SockTransHeader &header, const UBSHcomNetTransRequest &req)
 {
-    auto opCtxInfo = mOpCtxInfoPool.Get();
-    if (NN_UNLIKELY(opCtxInfo == nullptr)) {
-        NN_LOG_ERROR("Failed to PostSend with sock worker " << DetailName() << " as no ctx left");
-        return SS_CTX_FULL;
-    }
-    opCtxInfo->sock = sock;
-    opCtxInfo->opType = SockOpContextInfo::SockOpType::SS_SEND_RAW;
-    opCtxInfo->upCtxSize = req.upCtxSize;
-    if (opCtxInfo->upCtxSize > 0) {
-        if (NN_UNLIKELY(memcpy_s(opCtxInfo->upCtx, NN_NO16, req.upCtxData, opCtxInfo->upCtxSize) != NN_OK)) {
-            ReturnResources(sock, opCtxInfo, nullptr);
-            NN_LOG_ERROR("Failed to copy req to opCtxInfo");
-            return SS_PARAM_INVALID;
-        }
-    }
-    auto headerReqInfo = mHeaderReqInfoPool.Get();
-    if (NN_UNLIKELY(headerReqInfo == nullptr)) {
-        NN_LOG_ERROR("Failed to PostSend with sock worker " << DetailName() << " as no ctx left");
-        ReturnResources(sock, opCtxInfo, nullptr);
-        return SS_CTX_FULL;
-    }
-    headerReqInfo->sendHeader = header;
-    headerReqInfo->request = reinterpret_cast<void *>(req.lAddress);
-    opCtxInfo->headerRequest = headerReqInfo;
-    opCtxInfo->errType = SockOpContextInfo::SockErrorType::SS_NO_ERROR;
-
-    auto result = sock->PostSend(opCtxInfo);
-    // blocking post send need call upper handle
+    auto result = sock->PostSendNoLock(header, req);
+    // blocking post send no cpy not call upper handle
     if (result == SS_OK) {
-        mSendPostedHandler(opCtxInfo);
-        mOpCtxInfoPool.Return(opCtxInfo);
         NN_LOG_TRACE_INFO("PostSend cb sock " << sock->Id() << " head imm data " << header.immData << ", flags " <<
             header.flags << ", seqNo " << header.seqNo << ", data len " << header.dataLength);
         return result;
-    } else if (result == SS_SOCK_SEND_EAGAIN) {
-        return ModifyInEpoll(sock, EPOLLIN | EPOLLOUT | EPOLLET);
-    } else if (result != SS_TCP_RETRY) {
-        auto res = ModifyInEpoll(sock, EPOLLWRNORM);
-        result = res == SS_OK ? result : res;
     }
-    mHeaderReqInfoPool.Return(opCtxInfo->headerRequest);
-    opCtxInfo->headerRequest = nullptr;
-    mOpCtxInfoPool.Return(opCtxInfo);
-    opCtxInfo = nullptr;
 
+    NN_LOG_ERROR("Failed to PostSendNoCpy with sock worker " << DetailName());
     return result;
 }
 
