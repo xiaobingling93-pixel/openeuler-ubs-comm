@@ -82,7 +82,7 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
 | UBSOCKET_AUTO_FALLBACK_TCP        | 协议不匹配时是否自动降级为TCP                     | false, true                                                  | true              | 否                                  |
 | UBSOCKET_TRACE_ENABLE             | 是否打开trace统计                                 | false, true                                                  | true             | 否                                  |
 | UBSOCKET_TRACE_TIME               | 控制维测数据输出间隔（单位s）                     | [1, 300]                                                     | 10                | 否                                  |
-| UBSOCKET_TRACE_FILE_PATH          | 控制维测数据输出路径                              | [1, 512]                                                     | /tmp/ubsocket/log | 否                                  |
+| UBSOCKET_TRACE_FILE_PATH          | 控制维测数据输出路径，路径长度范围在1到512bytes     | [1, 512]                                                    | /tmp/ubsocket/log | 否                                  |
 | UBSOCKET_TRACE_FILE_SIZE          | 控制维测数据文件大小（MB）                        | [1, 300]                                                     | 10                | 否                                  |
 | UBSOCKET_STATS_CLI                | 是否启用trace cli功能                             | true, false                                                  | false             | 否                                  |
 | UBSOCKET_ENABLE_SHARE_JFR         | 设置是否开启共享JFR                               | false, true                                                  | true             | 否                                  |
