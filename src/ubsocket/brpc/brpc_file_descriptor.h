@@ -2718,8 +2718,12 @@ private:
         queue_cfg.mode = UMQ_MODE_INTERRUPT;
         // 共享 JFR、AE 事件依赖 umq_ctx.
         queue_cfg.umq_ctx = m_fd;
-        queue_cfg.priority = context->GetLinkPriority();
         queue_cfg.used_ports = mUsedPorts;
+
+        if (context->GetLinkPriority() != DEFAULT_LINK_PRIORITY) {
+            queue_cfg.priority = context->GetLinkPriority();
+            queue_cfg.create_flag |= UMQ_CREATE_FLAG_PRIORITY;
+        } 
 
         int n = snprintf_s(queue_cfg.name, UMQ_NAME_MAX_LEN, UMQ_NAME_MAX_LEN - 1, "fd: %d", m_fd);
         if ((((int)UMQ_NAME_MAX_LEN - 1) < n) || (n < 0)) {

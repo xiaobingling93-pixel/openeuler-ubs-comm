@@ -17,7 +17,7 @@
 #define BRPC_SYM_STR_LEN_MAX       (128)
 #define DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH          (1024)
 #define DEFAULT_MIN_RESERVED_CREDIT          (100)
-#define DEFAULT_LINK_PRIORITY      (0)
+#define DEFAULT_LINK_PRIORITY      (-1)
 #define UBSOCKET_LINK_PRIORITY_MIN (0)
 #define UBSOCKET_LINK_PRIORITY_MAX (15)
 #define ENV_VAR_BRPC_ALLOC_SYM     "UBSOCKET_BRPC_ALLOC_SYM"
@@ -88,7 +88,7 @@ public:
           return m_min_reserved_credit;
       }
 
-      uint8_t GetLinkPriority()
+      int8_t GetLinkPriority()
       {
           return m_link_priority;
       }
@@ -170,18 +170,22 @@ public:
         }
 
         if (strlen(m_link_priority_str) > 0) {
-            uint8_t input_link_prio = 0;
+            int8_t input_link_prio = -1;
             try {
-                input_link_prio = static_cast<uint8_t>(std::stoi(m_link_priority_str));
+                input_link_prio = static_cast<int8_t>(std::stoi(m_link_priority_str));
             } catch (const std::exception& e) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Illegal value UBSOCKET_LINK_PRIORITY, priority set to 0.\n");
-                input_link_prio = 0;
+                RPC_ADPT_VLOG_ERR (ubsocket::UBSocket,
+                    "Illegal value UBSOCKET_LINK_PRIORITY, priority set to default.\n");
+                input_link_prio = -1;
             }
             if (input_link_prio < UBSOCKET_LINK_PRIORITY_MIN || input_link_prio > UBSOCKET_LINK_PRIORITY_MAX) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Exceeded value UBSOCKET_LINK_PRIORITY, priority set to 0.\n");
-                input_link_prio = 0;
+                if (input_link_prio != DEFAULT_LINK_PRIORITY) {
+                    RPC_ADPT_VLOG_ERR (ubsocket::UBSocket,
+                        "Exceeded value UBSOCKET_LINK_PRIORITY, priority set to default.\n");
+                }
+                input_link_prio = -1;
             }
-            m_link_priority = input_link_prio == 0 ? DEFAULT_LINK_PRIORITY : input_link_prio;
+            m_link_priority = input_link_prio == -1 ? DEFAULT_LINK_PRIORITY : input_link_prio;
         }
         RPC_ADPT_VLOG_INFO("%s: %d\n", ENV_VAR_LINK_PRIORITY, GetLinkPriority());
 
@@ -261,7 +265,7 @@ public:
       bool m_degrade = false;
       uint64_t m_share_jfr_rx_queue_depth = DEFAULT_SHARE_JFR_RX_QUEUE_DEPTH;
       char m_link_priority_str[BOOL_STR_LEN_MAX] = "";
-      uint8_t m_link_priority = DEFAULT_LINK_PRIORITY;
+      int8_t m_link_priority = DEFAULT_LINK_PRIORITY;
       uint16_t m_min_reserved_credit = DEFAULT_MIN_RESERVED_CREDIT;
 }; 
    
