@@ -1087,7 +1087,9 @@ public:
                 umq_buf_free(buf[i]);
                 continue;
             }
-
+            if (m_context_trace_enable) {
+                UpdateTraceStats(StatsMgr::RX_PACKET_COUNT, 1);
+            }
             m_rx.m_block_cache.Insert((char *)(buf[i]->buf_data), buf[i]->data_size);
             polled_size += buf[i]->data_size;
         }
@@ -1132,7 +1134,6 @@ public:
         out_first_block->size = out_first_block->cap;
 
         if (m_context_trace_enable) {
-            UpdateTraceStats(StatsMgr::RX_PACKET_COUNT, 1);
             UpdateTraceStats(StatsMgr::RX_BYTE_COUNT, rx_total_len);
         }
         retCode = 0;
@@ -1276,6 +1277,9 @@ public:
         int ret = umq_post(m_local_umqh, tx_buf_list, UMQ_IO_TX, &bad_qbuf);
         if (ret == UMQ_SUCCESS) {
             m_tx.m_window_size -= batch;
+            if (m_context_trace_enable) {
+                UpdateTraceStats(StatsMgr::TX_PACKET_COUNT, 1);
+            }
         } else if (bad_qbuf != nullptr) {
             // Handle partial failure
             if (ret == -UMQ_ERR_EAGAIN) {
@@ -1320,7 +1324,6 @@ public:
 
         if (m_context_trace_enable) {
             UpdateTraceStats(StatsMgr::TX_PACKET_COUNT, 1);
-            UpdateTraceStats(StatsMgr::TX_BYTE_COUNT, tx_total_len);
         }
 
         retCode = 0;
