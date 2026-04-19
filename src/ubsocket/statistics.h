@@ -247,10 +247,10 @@ public:
 
         oss << "\"" << "totalConnections" << "\":" << mConnCount.load() << ",";
         oss << "\"" << "activeConnections" << "\":" << mActiveConnCount.load() << ",";
-        oss << "\"" << "sendPackets" << "\":" << mRxPacketCount.load() << ",";
-        oss << "\"" << "receivePackets" << "\":" << mTxPacketCount.load() << ",";
-        oss << "\"" << "sendBytes" << "\":" << mRxByteCount.load() << ",";
-        oss << "\"" << "receiveBytes" << "\":" << mTxByteCount.load() << ",";
+        oss << "\"" << "sendPackets" << "\":" << mTxPacketCount.load() << ",";
+        oss << "\"" << "receivePackets" << "\":" << mRxPacketCount.load() << ",";
+        oss << "\"" << "sendBytes" << "\":" << mTxByteCount.load() << ",";
+        oss << "\"" << "receiveBytes" << "\":" << mRxByteCount.load() << ",";
         oss << "\"" << "errorPackets" << "\":" << mTxErrorPacketCount.load() << ",";
         oss << "\"" << "lostPackets" << "\":" << mTxLostPacketCount.load() << "";
 
