@@ -116,8 +116,9 @@ int ConfigSettings::ParseEnvVars()
             m_is_ipv6 = true;
             RPC_ADPT_VLOG_INFO("%s: %s (ipv6)\n", ENV_VAR_DEV_IP, m_dev_ip_str);
         } else {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "IP address is invalid. Please double check your input(%s)\n",
-                              m_dev_ip_str);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "IP address is invalid. Please double check your input(%s)\n",
+                m_dev_ip_str);
             return -1;
         }
     }else if(strlen(m_dev_name_str) > 0){
@@ -126,8 +127,9 @@ int ConfigSettings::ParseEnvVars()
             if(inet_pton(AF_INET6, m_src_eid_str, &(m_src_eid)) == 1){
                 RPC_ADPT_VLOG_INFO("%s: %s (eid)\n", ENV_VAR_DEV_SRC_EID, m_src_eid_str);
             }else {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Eid is invalid. Please double check your input(%s)\n",
-                                  m_src_eid_str);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Eid is invalid. Please double check your input(%s)\n",
+                    m_src_eid_str);
                 return -1;
             }
         }

@@ -109,6 +109,7 @@ static const char *g_error_type_to_str[ubsocket::ERROR_TYPE_MAX] = {
     "UMQ_API",
     "UMQ_CQE",
     "UBSocket",
+    "NATIVE_SOCKET",
 };
 
 const char *error_type_to_str(ubsocket::error_type_t error_type)

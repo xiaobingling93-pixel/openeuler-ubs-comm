@@ -474,13 +474,13 @@ class Listener {
     {
         m_epoll_fd = OsAPiMgr::GetOriginApi()->epoll_create(MAX_EPOLL_FD_NUM);
         if(m_epoll_fd < 0){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create epoll file descriptor\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to create epoll file descriptor\n");
             return -1;
         }
 
         m_wakeup_fd = eventfd(0, EFD_NONBLOCK);
         if(m_wakeup_fd == -1){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create wakeup event file descriptor\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to create wakeup event file descriptor\n");
             goto CLEAN_EPOLL;
         }
 
@@ -488,14 +488,15 @@ class Listener {
         ev.events = EPOLLIN;
         ev.data.fd = m_wakeup_fd;
         if(OsAPiMgr::GetOriginApi()->epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, m_wakeup_fd, &ev) == -1){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add epoll event for wakeup event file descriptor\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to add epoll event for wakeup event file descriptor\n");
             goto CLEAN_ALL_RESOURCE;
         }
 
         ev.data.fd = m_uds_fd;
         if (OsAPiMgr::GetOriginApi()->epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, m_uds_fd, &ev) != 0) {
             char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add epoll control event, %s\n",
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to add epoll control event, %s\n",
                 NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
             goto CLEAN_ALL_RESOURCE;
         }
@@ -551,6 +552,12 @@ class Listener {
         // Do not set a timeout to reduce the core usage of the listening thread.
         int ev_num = OsAPiMgr::GetOriginApi()->epoll_wait(m_epoll_fd, events, MAX_EPOLL_EVENT_NUM, -1);
         if (ev_num == -1){
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "epoll_wait() failed in statistics poll, epfd: %d, maxevents: %d, timeout: %d, "
+                "errmsg: %s\n",
+                m_epoll_fd, MAX_EPOLL_EVENT_NUM, -1, errno,
+                NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return;
         }
 
@@ -575,7 +582,7 @@ class Listener {
         uint32_t totalSize = headerSize + sockDataSize;
         // malloc mem base on socket cnt
         if (!msg.AllocateIfNeed(totalSize)) {
-            RPC_ADPT_VLOG_INFO("Failed to alloc reponsese memory\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to alloc reponsese memory\n");
             return;
         }
         msg.ResetBuf();
@@ -585,7 +592,7 @@ class Listener {
         CLIheader.activeConn = StatsMgr::GetActiveConnCount();
         // collect data
         if (memcpy_s(msg.Data(), msg.GetBufLen(), &CLIheader, headerSize) != 0) {
-            RPC_ADPT_VLOG_INFO("Failed to memcpy cli header\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to memcpy cli header\n");
             return;
         }
         uint8_t *data = reinterpret_cast<uint8_t *>(msg.Data()) + sizeof(CLIDataHeader);
@@ -594,12 +601,12 @@ class Listener {
         header.mDataSize = totalSize;
         if (SocketFd::SendSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
             sizeof(CLIControlHeader)) {
-            RPC_ADPT_VLOG_INFO("Failed to send CLIControlHeader\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
             return;
         }
 
         if (SocketFd::SendSocketData(fd, msg.Data(), totalSize, LISTENER_SEND_RECV_TIMEOUT_MS) != totalSize) {
-            RPC_ADPT_VLOG_INFO("Failed to send CLIControlHeader\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
             return;
         }
     }
@@ -614,7 +621,7 @@ class Listener {
         umq_route_list_t route_list;
         int ret = umq_get_route_list(&route, UMQ_TRANS_MODE_UB, &route_list);
         if (ret != 0) {
-            RPC_ADPT_VLOG_INFO("Failed to get urma topo\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get urma topo\n");
             return;
         }
         umq_route_list_t filteredList{};
@@ -625,13 +632,13 @@ class Listener {
 
         filteredList.route_num = filterNum;
         if (filteredList.route_num == 0) {
-            RPC_ADPT_VLOG_INFO("Failed to get urma topo is zero\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get urma topo is zero\n");
             return;
         }
 
         if (SocketFd::SendSocketData(fd, &filteredList, sizeof(umq_route_list_t), LISTENER_SEND_RECV_TIMEOUT_MS) !=
             sizeof(umq_route_list_t)) {
-            RPC_ADPT_VLOG_INFO("Failed to send umq route list\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send umq route list\n");
         }
 
         return;
@@ -673,19 +680,19 @@ class Listener {
         uint32_t totalSize = headerSize + traceDataSize;
         // malloc mem base on socket cnt
         if (!msg.AllocateIfNeed(totalSize)) {
-            RPC_ADPT_VLOG_WARN("Failed to alloc reponsese memory\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to alloc reponsese memory\n");
             return;
         }
         msg.ResetBuf();
         // collect data
         if (memcpy_s(msg.Data(), msg.GetBufLen(), &delayHeader, headerSize) != 0) {
-            RPC_ADPT_VLOG_WARN("Failed to memcpy cli header\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to memcpy cli header\n");
             return;
         }
         if (delayHeader.tracePointNum > 0) {
             uint8_t *data = reinterpret_cast<uint8_t *>(msg.Data()) + sizeof(CLIDelayHeader);
             if (memcpy_s(data, traceDataSize, tranTraceInfos.data(), traceDataSize) != 0) {
-                RPC_ADPT_VLOG_WARN("Failed to memcpy trace data\n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to memcpy trace data\n");
                 return;
             }
         }
@@ -693,12 +700,12 @@ class Listener {
         header.mDataSize = totalSize;
         if (SocketFd::SendSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
             sizeof(CLIControlHeader)) {
-            RPC_ADPT_VLOG_WARN("Failed to send CLIControlHeader\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
             return;
         }
 
         if (SocketFd::SendSocketData(fd, msg.Data(), totalSize, LISTENER_SEND_RECV_TIMEOUT_MS) != totalSize) {
-            RPC_ADPT_VLOG_WARN("Failed to send CLIControlHeader\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
             return;
         }
     }
@@ -706,28 +713,29 @@ class Listener {
     void Process(uint32_t events)
     {
         CLIMessage msg{};
-        if ((events & ((uint32_t)EPOLLERR | EPOLLHUP)) != 0){
+        if ((events & ((uint32_t)EPOLLERR | EPOLLHUP)) != 0) {
             return;
         }
 
         int fd = OsAPiMgr::GetOriginApi()->accept(m_uds_fd, NULL, NULL);
-        if(fd<0){
+        if (fd < 0) {
             char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to accept connection, %s\n",
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to accept connection, %s\n",
                 NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
             return;
         }
         fd_guard tmpFd(fd);
         struct timeval tv = {0};
         tv.tv_sec = UDS_SEND_RECV_TIMEOUT_S;
-        if(OsAPiMgr::GetOriginApi()->setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) != 0){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to set socket send timeout option\n");
+        if (OsAPiMgr::GetOriginApi()->setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to set socket send timeout option\n");
             // fd_guard 会自动 close
             return;
         }
 
-        if(OsAPiMgr::GetOriginApi()->setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) != 0){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to set socket recv timeout option\n");
+        if (OsAPiMgr::GetOriginApi()->setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to set socket recv timeout option\n");
             // fd_guard 会自动 close
             return;
         }
@@ -735,7 +743,7 @@ class Listener {
         CLIControlHeader header{};
         if (SocketFd::RecvSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
             sizeof(CLIControlHeader)) {
-            RPC_ADPT_VLOG_INFO("Failed to recv CLIControlHeader\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to recv CLIControlHeader\n");
             return;
         }
 
@@ -753,8 +761,8 @@ class Listener {
     {
         uint64_t value = 1;
         ssize_t n = OsAPiMgr::GetOriginApi()->write(m_wakeup_fd, &value, sizeof(value));
-        if(n!=sizeof(value)){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to wakeup listen thread\n");
+        if (n != sizeof(value)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to wakeup listen thread\n");
         }
     }
 
@@ -762,8 +770,8 @@ class Listener {
     {
         uint64_t value;
         ssize_t n = OsAPiMgr::GetOriginApi()->read(m_wakeup_fd, &value, sizeof(value));
-        if(n!=sizeof(value)){
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to acknowledge wakeup listen thread\n");
+        if (n != sizeof(value)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to acknowledge wakeup listen thread\n");
         }
     }
 
@@ -775,22 +783,26 @@ class Listener {
     protected:
     int RecvCmd(int fd, CtrlHead &ipc_ctl)
     {
-        if(SocketFd::RecvSocketData(
-            fd, &ipc_ctl, sizeof(CtrlHead), LISTENER_SEND_RECV_TIMEOUT_MS) != sizeof(CtrlHead)){
+        if (SocketFd::RecvSocketData(
+            fd, &ipc_ctl, sizeof(CtrlHead), LISTENER_SEND_RECV_TIMEOUT_MS) != sizeof(CtrlHead)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to recv CLIControlHeader\n");
             return -1;
         }
 
-        if(ipc_ctl.m_data_size > CACHE_BUFFER_LEN){
+        if (ipc_ctl.m_data_size > CACHE_BUFFER_LEN) {
             // Currently, using 8KB of memory is more than sufficient.
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Received data size %u exceeds cache buffer length %u\n",
+                ipc_ctl.m_data_size, CACHE_BUFFER_LEN);
             return -1;
         }
 
-        if(ipc_ctl.m_data_size == 0){
+        if (ipc_ctl.m_data_size == 0) {
             return 0;
         }
 
-        if(SocketFd::RecvSocketData(
-            fd, m_cache_buffer, ipc_ctl.m_data_size, LISTENER_SEND_RECV_TIMEOUT_MS) != ipc_ctl.m_data_size){
+        if (SocketFd::RecvSocketData(
+            fd, m_cache_buffer, ipc_ctl.m_data_size, LISTENER_SEND_RECV_TIMEOUT_MS) != ipc_ctl.m_data_size) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to recv cache data\n");
             return -1;
         }
 
@@ -799,8 +811,9 @@ class Listener {
 
     int SendCmd(int fd, CtrlHead &ipc_ctl, const char *in_data)
     {
-        if(SocketFd::SendSocketData(
-            fd, &ipc_ctl, sizeof(CtrlHead), LISTENER_SEND_RECV_TIMEOUT_MS) != sizeof(CtrlHead)){
+        if (SocketFd::SendSocketData(
+            fd, &ipc_ctl, sizeof(CtrlHead), LISTENER_SEND_RECV_TIMEOUT_MS) != sizeof(CtrlHead)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
             return -1;
         }
 
@@ -808,8 +821,9 @@ class Listener {
             return 0;
         }
 
-        if(SocketFd::SendSocketData(
-            fd, in_data, ipc_ctl.m_data_size, LISTENER_SEND_RECV_TIMEOUT_MS) != ipc_ctl.m_data_size){
+        if( SocketFd::SendSocketData(
+            fd, in_data, ipc_ctl.m_data_size, LISTENER_SEND_RECV_TIMEOUT_MS) != ipc_ctl.m_data_size) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send cache data\n");
             return -1;
         }
 
@@ -891,3 +905,4 @@ class Listener {
 };
 
 #endif
+

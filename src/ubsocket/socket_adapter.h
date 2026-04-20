@@ -114,7 +114,8 @@ void RecordApi(void *handle, const char *symbol_name, ApiType &symbol,
                 break;
             case ubsocket::UTIL_VLOG_LEVEL_ERR:
             default:
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed when looking for '%s', error message: %s\n",
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Failed when looking for '%s', error message: %s\n",
                     symbol_name, (!dlerror_str ? "" : dlerror_str));
                 break;
         }
@@ -383,8 +384,7 @@ class OsAPiMgr {
 
         int ret = dlclose(handle);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Unable to close the dynamic link library: %s\n",
-                              dlerror());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Unable to close the dynamic link library: %s\n", dlerror());
         }
     }
 };

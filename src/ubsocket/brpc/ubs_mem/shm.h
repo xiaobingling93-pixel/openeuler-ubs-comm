@@ -145,15 +145,17 @@ public:
         if (ret == UBSM_ERR_ALREADY_EXIST) {
             ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_deallocate(shm->name);
             if (ret != 0) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem free origin shm name \"%s\" failed, ret %d.\n", shm->name,
-                                  ret);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Ubsmem free origin shm name \"%s\" failed, ret %d.\n",
+                    shm->name, ret);
                 return -1;
             }
             RPC_ADPT_VLOG_INFO("Ubsmem free origin shm name \"%s\" success, try to recreate.\n");
             ret  = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_allocate(m_regionName, shm->name, shm->len, SHM_RIGHT_MODE, flag);
             if (ret != 0) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem recreate shm name \"%s\" failed, ret %d.\n", shm->name,
-                                  ret);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Ubsmem recreate shm name \"%s\" failed, ret %d.\n",
+                    shm->name, ret);
                 return -1;
             }
         } else if (ret != 0) {
@@ -229,8 +231,9 @@ public:
 
         int ret = UbsMemAPiMgr::GetUbsMemAPiApi()->ubsmem_shmem_unmap(shm->addr, shm->len);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Ubsmem unmap shm name \"%s\" , addr %p, len %llu, failed, ret %d.\n",
-                              shm->name, shm->addr, shm->len, ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Ubsmem unmap shm name \"%s\" , addr %p, len %llu, failed, ret %d.\n",
+                shm->name, shm->addr, shm->len, ret);
             // TODO : Check ret=UBSM_ERR_NET
             return -1;
         }
@@ -288,8 +291,9 @@ private:
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "ubsmem lookup share regions failed, ret %d.\n", ret);
             return -1;
         } else if (regions.region[0].host_num <= 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "ubsmem lookup share regions sucess, but first region host num %d.\n",
-                              regions.region[0].host_num);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "ubsmem lookup share regions sucess, but first region host num %d.\n",
+                regions.region[0].host_num);
             return -1;           
         }
 

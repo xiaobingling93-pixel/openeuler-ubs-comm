@@ -123,8 +123,9 @@ public:
         int written = std::snprintf(shm.name, MAX_REGION_NAME_DESC_LENGTH, "%s_%d_%llu", prefix, static_cast<int>(pid),
                                     static_cast<unsigned long long>(seq));
         if (written < 0 || static_cast<size_t>(written) >= MAX_REGION_NAME_DESC_LENGTH) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SHM name too long: prefix=\"%s\", pid=%d, seq=%llu", prefix, pid,
-                              seq);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "SHM name too long: prefix=\"%s\", pid=%d, seq=%llu\n",
+                prefix, pid, seq);
             shm.name[0] = '\0';
             return false;
         }
@@ -235,7 +236,7 @@ private:
 
         int ret = umq_init(&umq_config);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq init\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_init() failed, ret: %d\n", ret);
             ResetBrpcAllocator();
             SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
             return;
@@ -243,7 +244,10 @@ private:
 
         int epfd = OsAPiMgr::GetOriginApi()->epoll_create(1);
         if (epfd < 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create epoll for async events.\n");
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "epoll_create() failed, size: %d, ret: %d, errno: %d, errmsg: %s\n",
+                1, epfd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return;
         }
 
@@ -266,7 +270,7 @@ private:
         }
 
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq init\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "AddIbDev()/AddUbDev() failed, ret: %d\n", ret);
             ResetBrpcAllocator();
             SetSocketFdTransMode(SOCKET_FD_TRANS_MODE_TCP);
             return;
@@ -352,7 +356,7 @@ private:
 
         ret = umq_dev_add(&trans_info);
         if (ret != 0 && ret != -UMQ_ERR_EEXIST) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add umq dev, ret %d\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_dev_add() failed, ret: %d\n", ret);
             return -1;
         }
         return 0;
@@ -387,7 +391,7 @@ private:
 
         ret = umq_dev_add(&trans_info);
         if (ret != 0 && ret != -UMQ_ERR_EEXIST) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add umq dev, ret %d\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_dev_add() failed, ret: %d\n", ret);
             return -1;
         }
 
@@ -400,7 +404,9 @@ private:
         int devCount = 0;
         umq_dev_info_t *umqDevInfo = umq_dev_info_list_get(transMode, &devCount);
         if (umqDevInfo == nullptr || devCount <= 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add umq dev info list get.\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_dev_info_list_get() failed, ret: %p, dev count: %d\n",
+                umqDevInfo, devCount);
             return -1;
         }
 
@@ -479,3 +485,4 @@ private:
 }  // namespace Brpc
 
 #endif
+

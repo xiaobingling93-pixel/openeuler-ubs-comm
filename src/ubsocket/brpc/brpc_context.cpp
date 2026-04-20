@@ -50,10 +50,10 @@ bool Context::m_ubEnable = false;
                 break;
 #endif
             default:
-                break;      
+                break;
         }
     } catch (std::exception& e) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "%s\n", e.what());
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
         return nullptr;
     }
 
@@ -80,10 +80,10 @@ bool Context::m_ubEnable = false;
                 break;
 #endif
             default:
-                break;      
+                break;
         }
     } catch (std::exception& e) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "%s\n", e.what());
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
         return nullptr;
     }
 
@@ -105,6 +105,7 @@ int Context::GetFirstCpuFromCpulist(const std::string &cpuListStr)
 {
     if (cpuListStr.empty()) {
         // 表示无效输入
+        RPC_ADPT_VLOG_WARN("GetFirstCpuFromCpulist failed, empty cpulist string\n");
         return -1;
     }
 
@@ -138,7 +139,8 @@ int Context::GetFirstCpuFromCpulist(const std::string &cpuListStr)
             return tokenCPU;
         }
     }
-    
+
+    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "GetFirstCpuFromCpulist failed, no valid cpu token\n");
     return -1; // 没有找到有效 CPU
 }
 
@@ -152,6 +154,7 @@ int Context::GetSocketIdOfCpu(int cpu)
     if (file >> socketId) {
         return socketId;
     }
+    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "GetSocketIdOfCpu failed, cpu: %d, path: %s\n", cpu, path.c_str());
     return -1; // 读取失败
 }
 
@@ -242,6 +245,10 @@ int Context::GetCurrentProcessSocketId()
     // 获取当前进程主线程所在的 CPU
     int cpu = sched_getcpu();
     if (cpu < 0) {
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "sched_getcpu() failed, ret: %d, errno: %d, errmsg: %s\n",
+            cpu, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         return -1;
     }
     return GetSocketIdOfCpu(cpu);
@@ -251,13 +258,13 @@ int Context::RegisterAsyncEvent(umq_trans_info_t info)
 {
     int afd = umq_async_event_fd_get(&info);
     if (afd == UMQ_INVALID_FD) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get async fd\n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_async_event_fd_get() failed, ret: %d\n", afd);
         return -1;
     }
 
     {
         ScopedUbExclusiveLocker sLock(m_asyncEventRegistryMutex);
-        
+
         auto iter = m_asyncEventRegistry.end();
         bool inserted = false;
         std::tie(iter, inserted) = m_asyncEventRegistry.insert(std::make_pair(afd, info));
@@ -272,7 +279,11 @@ int Context::RegisterAsyncEvent(umq_trans_info_t info)
     interest.data.fd = afd;
     int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(m_asyncEventEpollFd, EPOLL_CTL_ADD, afd, &interest);
     if (ret < 0) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add epoll event to async event epoll set.\n");
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "epoll_ctl() failed, op: %d, epfd: %d, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+            EPOLL_CTL_ADD, m_asyncEventEpollFd, afd, ret, errno,
+            NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         // 回退
         ScopedUbExclusiveLocker sLock(m_asyncEventRegistryMutex);
         m_asyncEventRegistry.erase(afd);
@@ -290,8 +301,10 @@ void Context::AsyncEventProcess()
             if (errno == EINTR) {
                 continue;
             }
-
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "epoll_wait on async event thread error, errno=%d\n", errno);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "epoll_wait on async event thread error, errno=%d, errmsg: %s\n",
+                errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             break;
         }
 
@@ -311,11 +324,14 @@ void Context::AsyncEventProcess()
             }
 
             umq_async_event_t av;
-            if (umq_get_async_event(&iter->second, &av) == UMQ_SUCCESS) {
+            int ret = umq_get_async_event(&iter->second, &av);
+            if (ret == UMQ_SUCCESS) {
                 AsyncEventHandle(&av);
                 umq_ack_async_event(&av);
             } else {
-                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get async event from async fd %d\n", afd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_get_async_event() failed, async fd: %d, ret: %d\n",
+                    afd, ret);
             }
         }
     }
@@ -326,7 +342,9 @@ static void Disconnect(uint64_t umqh)
     umq_cfg_get_t cfg;
     int ret = umq_cfg_get(umqh, &cfg);
     if (ret != UMQ_SUCCESS) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Unable to disconnect, as umq config get error\n");
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_cfg_get() failed in disconnect, umqh: %llu, ret: %d\n",
+            static_cast<unsigned long long>(umqh), ret);
         return;
     }
 
@@ -370,10 +388,17 @@ void Context::AsyncEventHandle(const umq_async_event_t *av)
             break;
 
         case UMQ_EVENT_QH_RQ_LIMIT:
-            umq_cfg_get(av->element.umqh, &cfg);
-            RPC_ADPT_VLOG_WARN(
-                "jfr queue depth limit: umqh=%llu rx_buf_size=%u tx_buf_size=%u rx_depth=%u tx_depth=%u\n",
-                av->element.umqh, cfg.rx_buf_size, cfg.tx_buf_size, cfg.rx_depth, cfg.tx_depth);
+            {
+                int ret = umq_cfg_get(av->element.umqh, &cfg);
+                if (ret != UMQ_SUCCESS) {
+                    RPC_ADPT_VLOG_WARN("umq_cfg_get() failed on queue depth limit, umqh: %llu, ret: %d\n",
+                                       static_cast<unsigned long long>(av->element.umqh), ret);
+                } else {
+                    RPC_ADPT_VLOG_WARN(
+                        "jfr queue depth limit: umqh=%llu rx_buf_size=%u tx_buf_size=%u rx_depth=%u tx_depth=%u\n",
+                        av->element.umqh, cfg.rx_buf_size, cfg.tx_buf_size, cfg.rx_depth, cfg.tx_depth);
+                }
+            }
             break;
 
         case UMQ_EVENT_QH_ERR:
@@ -439,18 +464,23 @@ void Context::AsyncEventHandle(const umq_async_event_t *av)
 int Context::GlobalLockInit() {
     g_socket_epoll_lock = g_rw_lock_ops.create();
     if (g_socket_epoll_lock == nullptr) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "GlobalLockInit create global socket epoll lock failed\n");
         return -1;
     }
     if (Fd<::SocketFd>::GlobalFdInit() != 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "GlobalLockInit SocketFd::GlobalFdInit() failed\n");
         return -1;
     }
     if (Fd<::EpollFd>::GlobalFdInit() != 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "GlobalLockInit EpollFd::GlobalFdInit() failed\n");
         return -1;
     }
     if (Fd<Brpc::EpollFd>::GlobalFdInit() != 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "GlobalLockInit Brpc::EpollFd::GlobalFdInit() failed\n");
         return -1;
     }
     return 0;
 }
 
 }  // namespace Brpc
+

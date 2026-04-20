@@ -17,7 +17,7 @@ static u_external_mutex_t* external_lock_create(u_external_mutex_type type)
 {
     auto* mutex = new(std::nothrow) pthread_mutex_t();
     if (mutex == nullptr) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Error when create mutex");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Error when create mutex \n");
         return nullptr;
     }
     pthread_mutexattr_t attr;
@@ -79,7 +79,7 @@ static u_rw_lock_t* rw_lock_create()
 {
     auto* rwlock = new(std::nothrow) pthread_rwlock_t();
     if (rwlock == nullptr) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Error when create rwlock");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Error when create rwlock \n");
         return nullptr;
     }
     pthread_rwlock_init(rwlock, nullptr);
@@ -149,7 +149,7 @@ static u_semaphore_t* semaphore_create()
 {
     auto* sem = new(std::nothrow) sem_t();
     if (sem == nullptr) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Error when create sem");
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Error when create sem \n");
         return nullptr;
     }
     return reinterpret_cast<u_semaphore_t*>(sem);
@@ -225,6 +225,7 @@ u_semaphore_ops_t g_semaphore_ops = {
 int u_register_external_lock_ops(const u_external_lock_ops_t *ops)
 {
     if (!ops || !ops->create || !ops->destroy || !ops->lock || !ops->unlock || !ops->try_lock) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "u_register_external_lock_ops invalid parameter \n");
         return -1;
     }
     g_external_lock_ops = *ops;
@@ -242,6 +243,7 @@ int u_register_rw_lock_ops(const u_rw_lock_ops_t *ops)
 {
     if (!ops || !ops->create || !ops->destroy || !ops->lock_read || !ops->lock_write ||
         !ops->unlock_rw || !ops->try_lock_read || !ops->try_lock_write) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "u_register_rw_lock_ops invalid parameter \n");
         return -1;
     }
     g_rw_lock_ops = *ops;

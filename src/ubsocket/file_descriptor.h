@@ -202,14 +202,14 @@ class SocketFd : public Fd<SocketFd> {
         size_t total = size;
         auto start = std::chrono::high_resolution_clock::now();
         char errnoBuf[NET_STR_ERROR_BUF_SIZE] = {0};
-        while (total != 0){
-            if(IsTimeout(start, timeout_ms)){
+        while (total != 0) {
+            if(IsTimeout(start, timeout_ms)) {
                 errno = ETIMEDOUT;
                 return sent;
             }
 
             sent = OsAPiMgr::GetOriginApi()->send(fd, cur, total, MSG_NOSIGNAL);
-            if(errno == EAGAIN){
+            if(errno == EAGAIN) {
                 // reset errno to 0
                 errno = 0;
                 if(sent > 0){
@@ -220,11 +220,12 @@ class SocketFd : public Fd<SocketFd> {
                 continue;
             }
 
-            if(sent<=0 || errno != 0){
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send socket message: %s, sent = %u.\n",
-                    NetCommon::NN_GetStrError(errno, errnoBuf, NET_STR_ERROR_BUF_SIZE), sent);
+            if(sent <= 0 || errno != 0) {
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "send() failed, ret: %zd, errno: %d, errmsg: %s, sent: %zd\n",
+                    sent, errno, NetCommon::NN_GetStrError(errno, errnoBuf, NET_STR_ERROR_BUF_SIZE), sent);
                 return sent;
-            }else {
+            } else {
                 RPC_ADPT_VLOG_DEBUG("Send socket message successful, fd: %d, sent = %u, total: %d\n",
                     fd, sent, size);
             }
@@ -244,14 +245,14 @@ class SocketFd : public Fd<SocketFd> {
         size_t total = size;
         auto start = std::chrono::high_resolution_clock::now();
         char errnoBuf[NET_STR_ERROR_BUF_SIZE] = {0};
-        while (total != 0){
-            if(IsTimeout(start, timeout_ms)){
+        while (total != 0) {
+            if(IsTimeout(start, timeout_ms)) {
                 errno = ETIMEDOUT;
                 return received;
             }
 
             received = OsAPiMgr::GetOriginApi()->recv(fd, cur, total, MSG_NOSIGNAL);
-            if(errno == EAGAIN){
+            if(errno == EAGAIN) {
                 // reset errno to 0
                 errno = 0;
                 if(received > 0){
@@ -262,9 +263,10 @@ class SocketFd : public Fd<SocketFd> {
                 continue;
             }
 
-            if (received <= 0 || errno != 0){
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to receive socket message: %s, received: %u, fd: %d.\n",
-                    NetCommon::NN_GetStrError(errno, errnoBuf, NET_STR_ERROR_BUF_SIZE), received, fd);
+            if (received <= 0 || errno != 0) {
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "recv() failed, ret: %zd, errno: %d, errmsg: %s, received: %zd, fd: %d\n",
+                    received, errno, NetCommon::NN_GetStrError(errno, errnoBuf, NET_STR_ERROR_BUF_SIZE), received, fd);
                 return received;
             } else {
                 RPC_ADPT_VLOG_DEBUG(
@@ -284,18 +286,18 @@ class SocketFd : public Fd<SocketFd> {
         errno = 0;
         char tmp_buf[FLUSH_SOCKET_MSG_BUFFER_LEN];
         ssize_t received = 0;
-        do{
+        do {
             received = OsAPiMgr::GetOriginApi()->recv(fd, tmp_buf, FLUSH_SOCKET_MSG_BUFFER_LEN, MSG_NOSIGNAL);
-            if (errno == EAGAIN || errno == EINTR){
+            if (errno == EAGAIN || errno == EINTR) {
                 // reset errno to 0
                 errno = 0;
                 continue;
             }
 
-            if(received < 0 || errno != 0){
+            if (received < 0 || errno != 0) {
                 return;
             }
-        }while (received > 0);
+        } while (received > 0);
     }
 
     virtual void OutputStats(std::ostringstream &oss) = 0;
@@ -339,8 +341,10 @@ class EpollEvent {
 
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_fd, &tmp_event);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add failed, epfd: %d, fd: %d\n", epoll_fd,
-                              m_fd);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "epoll_ctl(EPOLL_CTL_ADD) failed, epfd: %d, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                epoll_fd, m_fd, ret, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return ret;
         }
 
@@ -362,8 +366,10 @@ class EpollEvent {
 
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_MOD, m_fd, &tmp_event);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control modify failed, epfd: %d, fd: %d\n", epoll_fd,
-                              m_fd);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "epoll_ctl(EPOLL_CTL_MOD) failed, epfd: %d, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                epoll_fd, m_fd, ret, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return ret;
         }
 
@@ -383,13 +389,16 @@ class EpollEvent {
     {
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_DEL, m_fd, nullptr);
         if (ret != 0) {
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
             if (errno != EBADF) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control delete failed, "
-                    "epfd: %d, fd: %d, errno: %d\n", epoll_fd, m_fd, errno);
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "epoll_ctl(EPOLL_CTL_DEL) failed, epfd: %d, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    epoll_fd, m_fd, ret, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return ret;
             }
             RPC_ADPT_VLOG_WARN("Origin epoll control error for bad file descriptor, "
-                "epfd: %d, fd: %d\n", epoll_fd, m_fd);
+                "epfd: %d, fd: %d, ret: %d, errno: %d, errmsg: %s\n", epoll_fd, m_fd, ret, errno,
+                NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         }
 
         RPC_ADPT_VLOG_DEBUG("Origin epoll control delete successful, epfd: %d, fd: %d\n", epoll_fd, m_fd);
@@ -472,8 +481,11 @@ public:
 
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_fd, &tmp_event);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Add delete event fd failed, epfd: %d, delete event fd: %d\n",
-                              epoll_fd, m_fd);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "epoll_ctl(EPOLL_CTL_ADD) failed for delete event fd, epfd: %d, fd: %d, ret: %d, errno: %d, "
+                "errmsg: %s\n",
+                epoll_fd, m_fd, ret, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return ret;
         }
 
@@ -487,7 +499,10 @@ public:
     {
         uint64_t notification = 1;
         if (eventfd_write(m_fd, notification) < 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Wakeup delete event fd: %d failed.\n", m_fd);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "eventfd_write() failed for delete event fd, fd: %d, errno: %d, errmsg: %s\n",
+                m_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         }
     }
 
@@ -496,7 +511,10 @@ public:
     {
         uint64_t cnt;
         if (eventfd_read(m_fd, &cnt) == -1) {
-            RPC_ADPT_VLOG_WARN("read delete event fd %d failed, errno %d\n", m_fd, errno);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "eventfd_read() failed for delete event fd, fd: %d, errno: %d, errmsg: %s\n",
+                m_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         }
 
         return 0;
@@ -546,8 +564,7 @@ class EpollFd : public Fd<EpollFd> {
         if (m_epoll_event_map.count(fd) > 0) {
             RPC_ADPT_VLOG_WARN("Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
             EpollEvent *epoll_event = m_epoll_event_map[fd];
-            if (epoll_event->DelEpollEvent(m_fd) != 0)
-            {
+            if (epoll_event->DelEpollEvent(m_fd) != 0) {
                 RPC_ADPT_VLOG_WARN("Deleting duplicated fd: %d from epfd: %d is unsuccessful\n", fd, m_fd);
             }
             delete epoll_event;
@@ -563,6 +580,7 @@ class EpollFd : public Fd<EpollFd> {
         }
 
         if (epoll_event->AddEpollEvent(m_fd, use_polling)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Adding fd: %d to epfd: %d failed in EpollCtlAdd\n", fd, m_fd);
             delete epoll_event;
             return -1;
         }
@@ -581,13 +599,17 @@ class EpollFd : public Fd<EpollFd> {
         }
         ScopedUbExclusiveLocker sLock(m_mutex);
         if (m_epoll_event_map.count(fd) == 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control modify not exist, epfd: %d, fd: %d\n", m_fd,
-                              fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Origin epoll control modify not exist, epfd: %d, fd: %d\n",
+                m_fd, fd);
             return -1;
         }
 
         EpollEvent *epoll_event = m_epoll_event_map[fd];
         if (epoll_event->ModEpollEvent(m_fd, event, use_polling) !=0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "ModEpollEvent() failed in EpollCtlMod, epfd: %d, fd: %d\n",
+                m_fd, fd);
             return -1;
         }
 
@@ -605,6 +627,9 @@ class EpollFd : public Fd<EpollFd> {
 
         EpollEvent *epoll_event = iter->second;
         if (epoll_event->DelEpollEvent(m_fd, use_polling) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "DelEpollEvent() failed in EpollCtlDel, epfd: %d, fd: %d\n",
+                m_fd, fd);
             return -1;
         }
 
@@ -661,6 +686,9 @@ class EpollFd : public Fd<EpollFd> {
                                         bool use_polling = false)
     {
         if (maxevents <= 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "EpollWait invalid maxevents, epfd: %d, maxevents: %d\n",
+                m_fd, maxevents);
             return -1;
         }
 
@@ -670,6 +698,14 @@ class EpollFd : public Fd<EpollFd> {
         int ev_num = use_polling ? PollingEpoll::GetInstance().PollingEpollWait(m_fd, events_ptr, maxevents, timeout) :
                                    OsAPiMgr::GetOriginApi()->epoll_wait(m_fd, events_ptr, maxevents, timeout);
         if (ev_num == -1) {
+            if (errno != EINTR) {
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "epoll_wait() failed in EpollWait, epfd: %d, maxevents: %d, timeout: %d, "
+                    "errno: %d, errmsg: %s\n",
+                    m_fd, maxevents, timeout, errno,
+                    NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
+            }
             return ev_num;
         }
 
@@ -748,6 +784,9 @@ class EpollFd : public Fd<EpollFd> {
         struct epoll_event ev;
         m_del_event_fd_epoll_event = new(std::nothrow) DelEventFdEpollEvent(del_event_fd, &ev);
         if (m_del_event_fd_epoll_event->AddEpollEvent(m_fd)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "AddEpollEvent() failed for delete event fd, epfd: %d, event fd: %d\n",
+                m_fd, del_event_fd);
             delete m_del_event_fd_epoll_event;
             m_del_event_fd_epoll_event = nullptr;
             return -1;
@@ -760,7 +799,7 @@ class EpollFd : public Fd<EpollFd> {
     void WakeUpDelEventFd()
     {
         if (m_del_event_fd_epoll_event == nullptr) {
-            RPC_ADPT_VLOG_WARN("Wake up delete event fd failed. \n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Wake up delete event fd failed. \n");
             return;
         }
 

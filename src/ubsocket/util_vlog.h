@@ -51,6 +51,7 @@ typedef enum error_type {
     UMQ_API,
     UMQ_CQE,
     UBSocket,
+    NATIVE_SOCKET,
     ERROR_TYPE_MAX,
 } error_type_t;
 

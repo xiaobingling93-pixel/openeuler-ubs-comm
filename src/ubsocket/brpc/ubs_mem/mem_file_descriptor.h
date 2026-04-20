@@ -191,7 +191,7 @@ public:
                 socket_fd_obj = new MemSocketFd(fd, protocol_negotiation, (uint32_t)protocol_negotiation_recv_size);
                 Fd<::SocketFd>::OverrideFdObj(fd, socket_fd_obj);
             } catch (std::exception& e) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "%s\n", e.what());
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
                 OsAPiMgr::GetOriginApi()->close(fd);
                 return -1;
             }
@@ -311,8 +311,9 @@ public:
         m_localTrxShm.memid = input.memid;
         int ret = strncpy_s(m_localTrxShm.name, SHM_MAX_NAME_BUFF_LEN, input.name, SHM_MAX_NAME_BUFF_LEN - 1);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Set local trx info copy local shared memory name failed, ret %d.\n",
-                              ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Set local trx info copy local shared memory name failed, ret %d.\n",
+                ret);
         }
     }
 
@@ -325,7 +326,8 @@ public:
         int ret = strncpy_s(m_remoteTrxShm.name, SHM_MAX_NAME_BUFF_LEN, input.name, SHM_MAX_NAME_BUFF_LEN - 1);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Set remote trx info copy remote shared memory name failed, ret %d.\n", ret);
+                "Set remote trx info copy remote shared memory name failed, ret %d.\n",
+                ret);
         }
     }
 
@@ -362,7 +364,9 @@ public:
 
         // Use protocol negotiation to check TCP link
         if (SendSocketData(m_fd, &local_msg.protocol_negotiation, sizeof(uint64_t), NEGOTIATE_TIMEOUT_MS) != sizeof(uint64_t)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Add shmem connect failed to send protocol negotiation, fd: %d.\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Add shmem connect failed to send protocol negotiation, fd: %d.\n",
+                m_fd);
             return -1;
         }
 
@@ -372,7 +376,7 @@ public:
         m_localTrxShm.fd = m_fd;
 
         if (!Context::GetContext()->GetShmName(m_localTrxShm, "connect")) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Add shmem connect failed to Get SHM name\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Add shmem connect failed to Get SHM name\n");
             return -1;
         }
         
@@ -380,14 +384,15 @@ public:
         int ret = shm->Malloc(&m_localTrxShm);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Add shmem connect malloc local shared memory name %p failed, ret %d.\n",
+                "Add shmem connect malloc local shared memory name %p failed, ret %d.\n",
                 m_localTrxShm.name, ret);
             return -1;
         }
 
         ret = shm->Map(&m_localTrxShm);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Add shmem connect map local shared memory name %p failed, ret %d.\n",
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Add shmem connect map local shared memory name %p failed, ret %d.\n",
                 m_localTrxShm.name, ret);
             return -1;
         }
@@ -398,14 +403,17 @@ public:
         local_msg.shmem_length = m_localTrxShm.len;
         ret = strncpy_s(local_msg.name, SHM_MAX_NAME_BUFF_LEN, m_localTrxShm.name, SHM_MAX_NAME_BUFF_LEN - 1);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Add shmem connect copy local shared memory name failed, ret %d.\n",
-                              ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Add shmem connect copy local shared memory name failed, ret %d.\n",
+                ret);
             shm->Unmap(&m_localTrxShm);
             shm->Free(&m_localTrxShm);
             return -1;
         }
         if (SendSocketData(m_fd, &local_msg, sizeof(ExchangeData), NEGOTIATE_TIMEOUT_MS) != sizeof(ExchangeData)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Add shmem connect failed to send exchange data, fd: %d.\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Add shmem connect failed to send exchange data, fd: %d.\n",
+                m_fd);
             shm->Unmap(&m_localTrxShm);
             shm->Free(&m_localTrxShm);
             return -1;
@@ -413,8 +421,9 @@ public:
 
         // Recv remote Shm info from remote
         if (RecvSocketData(m_fd, &remote_msg, sizeof(ExchangeData), NEGOTIATE_TIMEOUT_MS) != sizeof(ExchangeData)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Add shmem connect failed to recv remote exchange data, fd: %d.\n",
-                              m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Add shmem connect failed to recv remote exchange data, fd: %d.\n",
+                m_fd);
             shm->Unmap(&m_localTrxShm);
             shm->Free(&m_localTrxShm);
             return -1;
@@ -424,8 +433,9 @@ public:
         m_remoteTrxShm.fd = m_fd;
         ret = strncpy_s(m_remoteTrxShm.name, SHM_MAX_NAME_BUFF_LEN, remote_msg.name, SHM_MAX_NAME_BUFF_LEN - 1);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Add shmem connect copy remote shared memory name failed, ret %d.\n",
-                              ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Add shmem connect copy remote shared memory name failed, ret %d.\n",
+                ret);
             shm->Unmap(&m_localTrxShm);
             shm->Free(&m_localTrxShm);
             return -1;
@@ -435,7 +445,7 @@ public:
         ret = shm->Map(&m_remoteTrxShm);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Add shmem connect map remote shared memory name %p failed, ret %d.\n",
+                "Add shmem connect map remote shared memory name %p failed, ret %d.\n",
                 m_remoteTrxShm.name, ret);
             return -1;
         }
@@ -453,7 +463,7 @@ public:
         // Send sever sync done message
         if (SendSocketData(
             m_fd, &send_sync_msg, sizeof(send_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(send_sync_msg)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to send sync done message, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send sync done message, fd: %d\n", m_fd);
             shm->Unmap(&m_localTrxShm);
             shm->Unmap(&m_remoteTrxShm);
             shm->Free(&m_localTrxShm);
@@ -463,7 +473,7 @@ public:
         if (RecvSocketData(
             m_fd, &recv_sync_msg, sizeof(recv_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(recv_sync_msg) ||
             strcmp(recv_sync_msg, UMQ_BIND_SYNC_MSG) != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to receive sync done message, fd: %d\n", m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to receive sync done message, fd: %d\n", m_fd);
             shm->Unmap(&m_localTrxShm);
             shm->Unmap(&m_remoteTrxShm);
             shm->Free(&m_localTrxShm);
@@ -475,7 +485,7 @@ public:
             Socket *sock = NULL;
             if (PollingEpoll::GetInstance().SocketCreate(&sock, m_fd, SocketType::SOCKET_TYPE_TCP_CLIENT,
                                                          0) != 0) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "SocketCreate failed \n");
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SocketCreate failed \n");
             } else {
                 PollingEpoll::GetInstance().AddSocket(m_fd, sock);
             }
@@ -498,8 +508,9 @@ public:
                     // Update m_isblocking based on the origin fd blocking state
                     m_isblocking = IsBlocking(m_fd);
                 } else {
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl set fd %d failed, ret is %d, errno %d\n", m_fd, ret,
-                                      errno);
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                        "fcntl set fd %d failed, ret is %d, errno %d\n",
+                        m_fd, ret, errno);
                 }
                 break;
             case F_GETOWN: // Get process ID or process group ID receiving SIGIO/SIGURG signals
@@ -513,7 +524,7 @@ public:
             case F_SETLK:          // Set file lock (non-blocking)
             case F_SETLKW:         // Set file lock (blocking)
             case F_GETLK:          // Get file lock information
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "fcntl fail, fd %d, cmd %d is not supported\n", m_fd, cmd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl fail, fd %d, cmd %d is not supported\n", m_fd, cmd);
                 break;
             default:
                 RPC_ADPT_VLOG_WARN("fcntl, fd %d, cmd %d may be not supported\n", m_fd, cmd);
@@ -535,8 +546,9 @@ public:
                     // Update m_isblocking based on the origin fd blocking state
                     m_isblocking = IsBlocking(m_fd);
                 } else {
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl64 set fd %d failed, ret is %d, errno %d\n", m_fd, ret,
-                                      errno);
+                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                        "fcntl64 set fd %d failed, ret is %d, errno %d\n",
+                        m_fd, ret, errno);
                 }
                 break;
             case F_GETOWN: // Get process ID or process group ID receiving SIGIO/SIGURG signals
@@ -571,8 +583,9 @@ public:
                 // set m_isblocking base on origin fd blocking state
                 m_isblocking = IsBlocking(m_fd);
             } else {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "ioctl set fd %d FIONBIO failed, ret is %d, errno %d\n", m_fd,
-                                  ret, errno);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "ioctl set fd %d FIONBIO failed, ret is %d, errno %d\n",
+                    m_fd, ret, errno);
             }
         } else {
             RPC_ADPT_VLOG_WARN("ioctl set fd %d, request %d may be not supported\n", m_fd, request);
@@ -599,7 +612,7 @@ public:
         if (m_epoll_in_msg_recv_size == 0) {
             m_closed.store(true, std::memory_order_relaxed);
         } else if (!use_polling) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Unexpected EPOLLIN event through TCP\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Unexpected EPOLLIN event through TCP\n");
         }
     }
 
@@ -730,7 +743,7 @@ private:
             socket_fd_obj = new MemSocketFd(new_fd, event_fd);
         } catch (std::exception& e) {
             OsAPiMgr::GetOriginApi()->close(event_fd);
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "%s\n", e.what());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
             return -1;
         }
 
@@ -739,8 +752,9 @@ private:
         // Recv remote Shm info from remote
         if (RecvSocketData(new_fd, &remote_msg, sizeof(ExchangeData), CONTROL_PLANE_TIMEOUT_MS) !=
             sizeof(ExchangeData)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Accept shmem connect failed to recv remote exchange data, fd: %d.\n",
-                              new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Accept shmem connect failed to recv remote exchange data, fd: %d.\n",
+                new_fd);
             delete socket_fd_obj;
             return -1;
         }
@@ -750,7 +764,8 @@ private:
         int ret = strncpy_s(remoteTrxShm.name, SHM_MAX_NAME_BUFF_LEN, remote_msg.name, SHM_MAX_NAME_BUFF_LEN - 1);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Accept shmem connect copy remote shared memory name failed, ret %d.\n", ret);
+                "Accept shmem connect copy remote shared memory name failed, ret %d.\n",
+                ret);
             delete socket_fd_obj;
             return -1;
         }
@@ -759,7 +774,7 @@ private:
         ret = shm->Map(&remoteTrxShm);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Accept shmem connect map remote shared memory name %p failed, ret %d.\n",
+                "Accept shmem connect map remote shared memory name %p failed, ret %d.\n",
                 remoteTrxShm.name, ret);
             delete socket_fd_obj;
             return -1;
@@ -771,7 +786,7 @@ private:
         localTrxShm.fd = new_fd;
         
         if (!Context::GetContext()->GetShmName(localTrxShm, "accept")) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to Get SHM name.\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to Get SHM name.\n");
             shm->Unmap(&remoteTrxShm);
             delete socket_fd_obj;
             return -1;
@@ -781,8 +796,8 @@ private:
         ret = shm->Malloc(&localTrxShm);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Accept shmem connect malloc local shared memory name %p failed, ret %d.\n",
-                              localTrxShm.name, ret);
+                "Accept shmem connect malloc local shared memory name %p failed, ret %d.\n",
+                localTrxShm.name, ret);
             delete socket_fd_obj;
             return -1;
         }
@@ -790,7 +805,7 @@ private:
         ret = shm->Map(&localTrxShm);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Accept shmem connect map local shared memory name %p failed, ret %d.\n",
+                "Accept shmem connect map local shared memory name %p failed, ret %d.\n",
                 localTrxShm.name, ret);
             delete socket_fd_obj;
             return -1;
@@ -803,7 +818,8 @@ private:
         ret = strncpy_s(local_msg.name, SHM_MAX_NAME_BUFF_LEN, localTrxShm.name, SHM_MAX_NAME_BUFF_LEN - 1);
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Accept shmem connect copy local shared memory name failed, ret %d.\n", ret);
+                "Accept shmem connect copy local shared memory name failed, ret %d.\n",
+                ret);
             shm->Unmap(&localTrxShm);
             shm->Unmap(&remoteTrxShm);
             shm->Free(&localTrxShm);
@@ -812,8 +828,9 @@ private:
         }
 
         if (SendSocketData(new_fd, &local_msg, sizeof(ExchangeData), NEGOTIATE_TIMEOUT_MS) != sizeof(ExchangeData)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Accept shmem connect failed to send exchange data, fd: %d.\n",
-                              new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Accept shmem connect failed to send exchange data, fd: %d.\n",
+                new_fd);
             shm->Unmap(&localTrxShm);
             shm->Unmap(&remoteTrxShm);
             shm->Free(&localTrxShm);
@@ -845,7 +862,7 @@ private:
         // Send sever sync done message
         if (SendSocketData(
             new_fd, &send_sync_msg, sizeof(send_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(send_sync_msg)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to send sync done message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send sync done message, fd: %d\n", new_fd);
             shm->Unmap(&localTrxShm);
             shm->Unmap(&remoteTrxShm);
             shm->Free(&localTrxShm);
@@ -856,7 +873,7 @@ private:
         if (RecvSocketData(
             new_fd, &recv_sync_msg, sizeof(recv_sync_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(recv_sync_msg) ||
             strcmp(recv_sync_msg, UMQ_BIND_SYNC_MSG) != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Failed to receive sync done message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to receive sync done message, fd: %d\n", new_fd);
             shm->Unmap(&localTrxShm);
             shm->Unmap(&remoteTrxShm);
             shm->Free(&localTrxShm);
@@ -985,7 +1002,7 @@ public:
     virtual ALWAYS_INLINE int EpollCtlAdd(int fd, struct epoll_event *event, bool use_polling = false) override
     {
         if (event == nullptr) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Invalid argument, epoll event is NULL\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid argument, epoll event is NULL\n");
             errno = EINVAL;
             return -1;
         }
@@ -996,7 +1013,7 @@ public:
         }
 
         if (m_epoll_event_map.count(fd) > 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add duplicated, epfd: %d, fd: %d\n", m_fd, fd);
             errno = EEXIST;
             return -1;
         }
@@ -1005,7 +1022,7 @@ public:
         try {
             epoll_event = new MemEpollEvent(fd, event);
         } catch (std::exception& e) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "%s\n", e.what());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
             return -1;
         }
 

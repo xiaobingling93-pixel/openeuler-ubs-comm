@@ -98,6 +98,7 @@ int PollingEpoll::PollingEpollCreate(int epfd)
     EpollSocket *epSocket = (EpollSocket *)malloc(sizeof(EpollSocket));
     if (UNLIKELY(epSocket == nullptr)) {
         errno = ENOMEM;
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "PollingEpollCreate malloc failed, epfd: %d\n", epfd);
         return -1;
     }
     epSocket->sock.type = SocketType::SOCKET_TYPE_EPOLL;
@@ -111,6 +112,7 @@ int PollingEpoll::PollingEpollCreate(int epfd)
         epSocket->ep.readyList = nullptr;
         FREE_PTR(epSocket);
         errno = ENOMEM;
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "PollingEpollCreate list init failed, epfd: %d\n", epfd);
         return -1;
     }
 
@@ -121,6 +123,7 @@ int PollingEpoll::PollingEpollCreate(int epfd)
 int PollingEpoll::EpollListRemove(EpList *epList, int fd)
 {
     if (UNLIKELY(epList == nullptr)) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "EpollListRemove failed, ep list is null, fd: %d\n", fd);
         return -1;
     }
 
@@ -137,6 +140,7 @@ int PollingEpoll::EpollListRemove(EpList *epList, int fd)
         return 0;
     }
     errno = ENOENT;
+    RPC_ADPT_VLOG_WARN("EpollListRemove failed, fd not found, fd: %d\n", fd);
     return -1;
 }
 
@@ -229,6 +233,9 @@ PollingErrCode PollingEpoll::UmqPoll(uint64_t umqHandle)
     }
     int poll_num = umq_poll(umqHandle, UMQ_IO_RX, buf, pollBatchMax);
     if (poll_num < 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_poll() failed, umqh: %llu, ret: %d\n",
+            static_cast<unsigned long long>(umqHandle), poll_num);
         delete[] buf;
         return PollingErrCode::ERR;
     }
@@ -306,8 +313,9 @@ void PollingEpoll::EpollProcess(EventPoll *eventPoll)
         int fd = curNode->epItem.fd;
         Socket *socket = g_table[fd];
         if (socket == nullptr) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid fd in epoll wait list, epfd=%d, fd=%d.\n", eventPoll->epfd,
-                              fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Invalid fd in epoll wait list, epfd=%d, fd=%d.\n",
+                eventPoll->epfd, fd);
             EpollListRemove(eventPoll->waitList, fd);
             continue;
         }
@@ -363,6 +371,11 @@ void PollingEpoll::EpollEventProcess(EventPoll *eventPoll, struct epoll_event *e
     }
     int rc = OsAPiMgr::GetOriginApi()->epoll_wait(eventPoll->epfd, events + *rdCnt, maxevents - *rdCnt, 0);
     if (UNLIKELY(rc == -1)) {
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "epoll_wait() failed in EpollEventProcess, epfd: %d, maxevents: %d, errno: %d, errmsg: %s\n",
+            eventPoll->epfd, maxevents - *rdCnt, errno,
+            NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         *rdCnt = -1;
         return;
     }
@@ -372,6 +385,9 @@ void PollingEpoll::EpollEventProcess(EventPoll *eventPoll, struct epoll_event *e
 int PollingEpoll::PollingEpollWait(int epfd, struct epoll_event *events, int maxevents, int timeout)
 {
     if (timeout < -1) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "PollingEpollWait invalid timeout, epfd: %d, timeout: %d\n",
+            epfd, timeout);
         return -1;
     }
     EpollSocket *epSocket = GET_EPOLL_SOCKET(g_table[epfd]);
@@ -397,11 +413,13 @@ int PollingEpoll::PollingEpollWait(int epfd, struct epoll_event *events, int max
 int PollingEpoll::SocketCreate(Socket **out, int fd, SocketType type, uint64_t umqHandle)
 {
     if (UNLIKELY(out == nullptr)) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SocketCreate failed, out is null, fd: %d\n", fd);
         return -1;
     }
 
     Socket *sock = (Socket*)calloc(1, sizeof(Socket));
     if (UNLIKELY(sock == nullptr)) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SocketCreate calloc failed, fd: %d\n", fd);
         return -1;
     }
 
@@ -429,6 +447,7 @@ int PollingEpoll::EpollListReplace(EpList *epList, EpItem epItem)
         return 0;
     }
     errno = ENOENT;
+    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "EpollListReplace failed, fd not found, fd: %d\n", epItem.fd);
     return -1;
 }
 
@@ -441,10 +460,14 @@ int PollingEpoll::EpollCtl(int epfd, int op, int fd, struct epoll_event *event)
             EpItem epItem = {.fd = fd, .event = *event};
             if (IsExistInEpollList(eventPoll->waitList, epItem.fd) == 0) {
                 errno = EEXIST;
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "EpollCtl add duplicated fd, epfd: %d, fd: %d\n", epfd, fd);
                 return -1;
             }
             PollingErrCode rc = EpollListInsert(eventPoll->waitList, epItem);
             if (UNLIKELY(rc != PollingErrCode::OK)) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "EpollListInsert failed in EpollCtl add, epfd: %d, fd: %d, ret: %d\n",
+                    epfd, fd, static_cast<int>(rc));
                 return -1;
             }
             return 0;
@@ -462,7 +485,9 @@ int PollingEpoll::EpollCtl(int epfd, int op, int fd, struct epoll_event *event)
         }
         default:
             errno = EINVAL;
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "EpollCtl invalid op, epfd: %d, fd: %d, op: %d\n", epfd, fd, op);
             return -1;
     }
     return 0;
 }
+

@@ -43,12 +43,19 @@ EXPOSE_C_DEFINE int UB_API_WRAP(socket)(int domain, int type, int protocol)
 
     int event_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (event_fd < 0) {
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "eventfd() failed, ret: %d, errno: %d, errmsg: %s\n",
+            event_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         OsAPiMgr::GetOriginApi()->close(fd);
         return -1;
     }
 
     SocketFd *socket_fd_obj = Brpc::Context::GetContext()->CreateSocketFd(fd, event_fd);
     if (socket_fd_obj == nullptr) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "CreateSocketFd() failed, fd: %d, event fd: %d, ret: %p\n",
+            fd, event_fd, socket_fd_obj);
         OsAPiMgr::GetOriginApi()->close(fd);
         OsAPiMgr::GetOriginApi()->close(event_fd);
         return -1;
@@ -403,6 +410,12 @@ EXPOSE_C_DEFINE int UB_API_WRAP(setsockopt)(int fd, int level, int optname, cons
 EXPOSE_C_DEFINE int UB_API_WRAP(epoll_create)(int size)
 {
     int epoll_fd = OsAPiMgr::GetOriginApi()->epoll_create(size);
+    if (epoll_fd < 0 && Brpc::Context::GetUbEnableFlag()) {
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "epoll_create() failed, size: %d, ret: %d, errno: %d, errmsg: %s\n",
+            size, epoll_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
+    }
     if (!Brpc::Context::GetUbEnableFlag() || epoll_fd < 0) {
         return epoll_fd;
     }
@@ -416,6 +429,9 @@ EXPOSE_C_DEFINE int UB_API_WRAP(epoll_create)(int size)
 
     EpollFd *epoll_fd_obj = context->CreateEpollFd(epoll_fd);
     if (epoll_fd_obj == nullptr) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "CreateEpollFd() failed, epoll fd: %d, ret: %p\n",
+            epoll_fd, epoll_fd_obj);
         OsAPiMgr::GetOriginApi()->close(epoll_fd);
         return -1;
     }
@@ -433,6 +449,12 @@ EXPOSE_C_DEFINE int UB_API_WRAP(epoll_create)(int size)
 EXPOSE_C_DEFINE int UB_API_WRAP(epoll_create1)(int flags)
 {
     int epoll_fd = OsAPiMgr::GetOriginApi()->epoll_create1(flags);
+    if (epoll_fd < 0 && Brpc::Context::GetUbEnableFlag()) {
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "epoll_create1() failed, flags: %d, ret: %d, errno: %d, errmsg: %s\n",
+            flags, epoll_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
+    }
     if (!Brpc::Context::GetUbEnableFlag() || epoll_fd < 0) {
         return epoll_fd;
     }
@@ -446,6 +468,9 @@ EXPOSE_C_DEFINE int UB_API_WRAP(epoll_create1)(int flags)
 
     EpollFd *epoll_fd_obj = context->CreateEpollFd(epoll_fd);
     if (epoll_fd_obj == nullptr) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "CreateEpollFd() failed, epoll fd: %d, ret: %p\n",
+            epoll_fd, epoll_fd_obj);
         OsAPiMgr::GetOriginApi()->close(epoll_fd);
         return -1;
     }
@@ -681,3 +706,4 @@ __attribute__((constructor)) static void rpc_adapter_brpc_init(void)
 
 #endif
 }
+
