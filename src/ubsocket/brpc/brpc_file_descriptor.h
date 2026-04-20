@@ -282,7 +282,8 @@ public:
         m_rx.m_remaining_size = 0;
     }
 
-    SocketFd(int fd, uint64_t protocol_negotiation, uint32_t protocol_negotiation_recv_size) : ::SocketFd(fd), StatsMgr(fd)
+    SocketFd(int fd, uint64_t protocol_negotiation, uint32_t protocol_negotiation_recv_size) :
+        ::SocketFd(fd), StatsMgr(fd)
     {
         m_tx.m_protocol_negotiation = protocol_negotiation;
         m_tx.m_protocol_negotiation_recv_size = protocol_negotiation_recv_size;
@@ -361,8 +362,9 @@ public:
         int ret = ValidateProtocol(fd, protocol_negotiation, protocol_negotiation_recv_size);
         Context *context = Context::GetContext();
         if (ret > 0 && !context->AutoFallbackTCP()) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to accept as protocol dismatch,Peer IP:%s\n",
-                              GetPeerIp().c_str());
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Failed to accept as protocol dismatch,Peer IP:%s\n",
+                GetPeerIp().c_str());
             OsAPiMgr::GetOriginApi()->close(fd);
             return;
         }
@@ -446,9 +448,10 @@ public:
             */
             if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {  // nonblocking
                 char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "tcp accept failed,Peer IP:%s, fd: %d, %d, %s\n",
-                    GetPeerIp().c_str(), m_fd, errno,
-                        NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "accept() failed, Peer IP:%s, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    GetPeerIp().c_str(), m_fd, fd, errno,
+                    NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE));
                 return fd;
             }
             char buf[NET_STR_ERROR_BUF_SIZE] = {0};
@@ -464,8 +467,9 @@ public:
     {
         std::vector<uint32_t> ids = context->GetAllSocketId();
         if (ids.empty() || ids.size() > NEGOTIATE_SOCKET_ID_MAX_NUM) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid local socket ids, size %zu, Peer IP:%s, fd: %d\n",
-                              ids.size(), GetPeerIp().c_str(), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Invalid local socket ids, size %zu, Peer IP:%s, fd: %d\n",
+                ids.size(), GetPeerIp().c_str(), m_fd);
             return -1;
         }
         socket_id_count = static_cast<uint32_t>(ids.size());
@@ -482,12 +486,14 @@ public:
         dev_schedule_policy schedulePolicy = context->GetDevSchedulePolicy();
         NegotiateRsp rsp {};
         if (RecvSocketData(m_fd, &rsp, sizeof(rsp), CONTROL_PLANE_TIMEOUT_MS) != static_cast<int>(sizeof(rsp))) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                "Failed to receive negotiate response in connect,Peer IP:%s, fd: %d\n", GetPeerIp().c_str(), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to receive negotiate response in connect,Peer IP:%s, fd: %d\n",
+                GetPeerIp().c_str(), m_fd);
             return -1;
         }
         if (rsp.ret_code != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to negotiate in connect, peer ret %d, Peer IP:%s, fd: %d\n",
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Failed to negotiate in connect, peer ret %d, Peer IP:%s, fd: %d\n",
                 rsp.ret_code, GetPeerIp().c_str(), m_fd);
             return -1;
         }
@@ -513,7 +519,9 @@ public:
 
             if (SendSocketData(
                 m_fd, &connRoute, sizeof(umq_route_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_route_t)) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send connect eid message in connect, fd: %d\n", m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "Failed to send connect eid message in connect, fd: %d\n",
+                    m_fd);
                 return -1;
             }
 
@@ -530,25 +538,26 @@ public:
 
         ubsocket::Error ret = CreateLocalUmq(&connEid);
         if (!IsOk(ret)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to create umq,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Failed to create umq,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return ret;
         }
 
         local_cp_msg.queue_bind_info_size =
             umq_bind_info_get(m_local_umqh, local_cp_msg.queue_bind_info, UMQ_BIND_INFO_SIZE_MAX);
         if (local_cp_msg.queue_bind_info_size == 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Failed to execute umq_bind_info_get,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_bind_info_get() failed, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d, ret: %u\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd, local_cp_msg.queue_bind_info_size);
             return ubsocket::Error::kUMQ_BIND_INFO_GET | ubsocket::Error::kRETRYABLE | ubsocket::Error::kDEGRADABLE;
         }
 
         uint32_t len = sizeof(local_cp_msg) - sizeof(uint64_t);
         if (SendSocketData(m_fd, &local_cp_msg.queue_bind_info_size, len, CONTROL_PLANE_TIMEOUT_MS) != len) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Failed to send local control message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to send local control message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return ubsocket::FromRaw(errno);
         }
         RPC_ADPT_VLOG_DEBUG("send local control message, fd: %d, cp msg len: %d, bind info len: %d\n",
@@ -556,18 +565,19 @@ public:
 
         if (RecvSocketData(
             m_fd, &remote_cp_msg, sizeof(remote_cp_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(remote_cp_msg)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Failed to receive remote control message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to receive remote control message,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return ubsocket::FromRaw(errno);
         }
         RPC_ADPT_VLOG_DEBUG("recv remote control message, fd: %d, cp msg len: %d, bind info len: %d\n",
             m_fd, sizeof(remote_cp_msg), remote_cp_msg.queue_bind_info_size);
 
-        if (umq_bind(m_local_umqh, remote_cp_msg.queue_bind_info, remote_cp_msg.queue_bind_info_size) != UMQ_SUCCESS) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Failed to execute umq_bind,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+        int umq_ret = umq_bind(m_local_umqh, remote_cp_msg.queue_bind_info, remote_cp_msg.queue_bind_info_size);
+        if (umq_ret != UMQ_SUCCESS) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_bind() failed, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d, ret: %d\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd, umq_ret);
             return ubsocket::Error::kUMQ_BIND | ubsocket::Error::kRETRYABLE | ubsocket::Error::kDEGRADABLE;
         }
         m_bind_remote = true;
@@ -594,8 +604,8 @@ public:
         // 1650 RC mode not support post rx right after create jetty, thus, move post rx operation after bind()
         if (PrefillRx() != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Failed to fill rx buffer to umq,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                "Failed to fill rx buffer to umq,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             return ubsocket::Error::kUBSOCKET_PREFILL_RX;
         }
 
@@ -608,8 +618,9 @@ public:
         umq_route_t connRoute;
         umq_eid_t peerBondingEid;
         if (ConnectNegotiate(&connEid, connRoute, peerBondingEid) < 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to negotiate in connect,Peer IP:%s, fd: %d\n",
-                              GetPeerIp().c_str(), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Failed to negotiate in connect,Peer IP:%s, fd: %d\n",
+                GetPeerIp().c_str(), m_fd);
             return -1;
         }
         m_conn_info.conn_eid = connEid;
@@ -639,22 +650,21 @@ public:
                     ackRet = DoUbConnect(connEid);
                     if (!IsOk(ackRet)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to finish ub bind in connect, Peer eid:" EID_FMT
-                                          ", Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                            "Failed to finish ub bind in connect, Peer eid:" EID_FMT ", Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                     }
 
                     if (SendSocketData(m_fd, &ackRet, sizeof(ackRet), CONTROL_PLANE_TIMEOUT_MS) != sizeof(ackRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to send ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to send ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                         return -1;
                     }
 
                     if (RecvSocketData(m_fd, &peerRet, sizeof(peerRet), CONTROL_PLANE_TIMEOUT_MS) != sizeof(peerRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to receive peer ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to receive peer ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                         return -1;
                     }
 
@@ -691,9 +701,8 @@ public:
 
                     if (CheckOtherRoute(otherConnRoute, peerBondingEid, connRoute) != 0) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to get other route in retry,Peer eid:" EID_FMT
-                                          ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                            "Failed to get other route in retry,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                         state = UBHandshakeState::kRETRY_FAILED_CHECK_OTHER_ROUTE;
                         break;
                     }
@@ -702,10 +711,10 @@ public:
                     otherRouteMessage.other_route = otherConnRoute;
                     if (SendSocketData(m_fd, &otherRouteMessage, sizeof(otherRouteMessage),
                                        CONTROL_PLANE_TIMEOUT_MS) != sizeof(otherRouteMessage)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to send connect eid message in retry connect, Peer eid:" EID_FMT
-                                          ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to send connect eid message in retry connect, Peer eid:" EID_FMT
+                            ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                         return -1;
                     }
 
@@ -713,24 +722,22 @@ public:
                     ackRet = DoUbConnect(connEid);
                     if (!IsOk(ackRet)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to finish ub bind in retry connect, Peer eid:" EID_FMT
-                                          ", Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                            "Failed to finish ub bind in retry connect, Peer eid:" EID_FMT ", Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                     }
 
                     if (SendSocketData(m_fd, &ackRet, sizeof(ackRet), CONTROL_PLANE_TIMEOUT_MS) != sizeof(ackRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to send ack ret in retry connect, Peer eid:" EID_FMT
-                                          ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to send ack ret in retry connect, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                         return -1;
                     }
 
                     if (RecvSocketData(m_fd, &peerRet, sizeof(peerRet), CONTROL_PLANE_TIMEOUT_MS) !=
                         sizeof(peerRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to receive peer ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to receive peer ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                         return -1;
                     }
 
@@ -750,10 +757,10 @@ public:
                     otherRouteMessage.ub_handshake_state = UBHandshakeState::kRETRY_FAILED_CHECK_OTHER_ROUTE;
                     if (SendSocketData(m_fd, &otherRouteMessage, sizeof(otherRouteMessage),
                                        CONTROL_PLANE_TIMEOUT_MS) != sizeof(otherRouteMessage)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to send connect eid message in retry connect,Peer eid:" EID_FMT
-                                          ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to send connect eid message in retry connect,Peer eid:" EID_FMT
+                            ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                     }
 
                     if (degradable) {
@@ -770,8 +777,8 @@ public:
 
                 case UBHandshakeState::kFAILED:
                     RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                      "Failed to get new connect in connect, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                      EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                        "Failed to get new connect in connect, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                        EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                     return -1;
             }
         }
@@ -784,8 +791,9 @@ public:
             Socket *sock = NULL;
             if (PollingEpoll::GetInstance().SocketCreate(&sock, m_fd, SocketType::SOCKET_TYPE_TCP_CLIENT,
                                                          m_local_umqh) != 0) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "SocketCreate failed,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                  EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "SocketCreate failed,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                    EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             } else {
                 PollingEpoll::GetInstance().AddSocket(m_fd, sock);
             }
@@ -817,7 +825,8 @@ public:
         // 判断TCPI_OPT_SYN_DATA，如果已置位则复用
         NegotiateReq req {};
         if (BuildNegotiateReq(&req) != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send negotiate request caused by building req failure\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Failed to send negotiate request caused by building req failure\n");
             return -1;
         }
         bool is_blocking = IsBlocking(m_fd);
@@ -832,8 +841,9 @@ public:
         ret = sendto_ret < 0 ? -1 : 0;
         if (ret < 0 && errno != 0) {
             char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-            RPC_ADPT_VLOG_NOTICE("TFO sendto[1] failed, errno %d, err msg: %s, fd %d\n", errno,
-                NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "TFO sendto[1] failed, ret: %zd, errno %d, err msg: %s, fd %d\n",
+                sendto_ret, errno, NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), m_fd);
         }
         if (!IsTfoConnection(m_fd)) {
             // 首次获取cookie，第二次发送
@@ -846,16 +856,18 @@ public:
             ret = sendto_ret < 0 ? -1 : 0;
             if (ret < 0 && errno != 0) {
                 char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-                RPC_ADPT_VLOG_NOTICE("TFO sendto[2] failed, errno %d, err msg: %s, fd %d\n", errno,
-                    NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), tmp_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "TFO sendto[2] failed, ret: %zd, errno %d, err msg: %s, fd %d\n",
+                    sendto_ret, errno, NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), tmp_fd);
             }
 
             int dup3_ret = dup3(tmp_fd, m_fd, O_CLOEXEC);
             OsAPiMgr::GetOriginApi()->close(tmp_fd);
             if (dup3_ret < 0) {
                 char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "dup3 failed, errno %d, err msg: %s, tmp_fd %d, m_fd %d\n", errno,
-                    NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), tmp_fd, m_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "dup3 failed, ret: %d, errno %d, err msg: %s, tmp_fd %d, m_fd %d\n",
+                    dup3_ret, errno, NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), tmp_fd, m_fd);
                 return -1;
             }
         } else {
@@ -898,7 +910,8 @@ public:
                     NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), m_fd);
             } else if (errno != EISCONN) {
                 char buf[NET_STR_ERROR_BUF_SIZE] = {0};
-                RPC_ADPT_VLOG_NOTICE("tcp connect failed, errno %d, err msg: %s, fd %d\n", errno,
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "connect() failed, ret: %d, errno: %d, errmsg: %s, fd: %d\n", ret, errno,
                     NetCommon::NN_GetStrError(errno, buf, NET_STR_ERROR_BUF_SIZE), m_fd);
                 return ret;
             }
@@ -916,8 +929,8 @@ public:
         ret = DoConnect();
         if (ret != 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Failed to establish UB connection,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                              EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                "Failed to establish UB connection,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
             Fd<::SocketFd>::OverrideFdObj(m_fd, nullptr);
             /* Clear messages that already exist on the TCP link to prevent 
                  * dirty messages from affecting user data transmission*/
@@ -1016,6 +1029,9 @@ public:
 
         if (iov == nullptr || iovcnt == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_WARN("ReadV invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                               m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
 
@@ -1033,6 +1049,10 @@ public:
         if (!enable_share_jfr && m_rx.m_get_and_ack_event) {
             if (GetAndAckEvent(UMQ_IO_RX) < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "ReadV GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
             m_rx.m_get_and_ack_event = false;
@@ -1054,6 +1074,10 @@ public:
             poll_num = GetQbuf(buf, POLL_BATCH_MAX);
             if (poll_num < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "ReadV GetQbuf() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             } else if (poll_num == 0) {
                 /* might be useful for qps performance by
@@ -1077,10 +1101,12 @@ public:
                     // try to wake up tx if necessary
                     bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                     if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
+                        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "write event fd%fd failed,Peer eid:" EID_FMT
-                                          ",Peer IP:%s, fd: %d, errno: %d\n",
-                                          m_event_fd, EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), errno);
+                            "eventfd_write() failed, event fd: %d, peer eid:" EID_FMT
+                            ", peer ip: %s, errno: %d, errmsg: %s\n",
+                            m_event_fd, EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), errno,
+                            NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                     }
                 }
 
@@ -1117,11 +1143,19 @@ public:
 
             if (m_flow_control_failed == true) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "ReadV flow control failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
 
             if (RearmRxInterrupt() < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "ReadV RearmRxInterrupt() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
 
@@ -1153,11 +1187,19 @@ public:
 
         if (iov == nullptr || iovcnt == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "WriteV invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
 
         if (m_closed.load(std::memory_order_relaxed)) {
             errno = EPIPE;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "WriteV socket is closed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
         
@@ -1166,6 +1208,10 @@ public:
             do {
                 if (GetAndAckEvent(UMQ_IO_TX) < 0) {
                     errno = EIO;
+                    char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                    RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                        "WriteV GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                        m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                     return -1;
                 }
                 // set poll_to_empty, means poll at least m_tx.m_retrieve_threshold TX CQE
@@ -1210,6 +1256,9 @@ public:
 
         umq_buf_t *tx_buf_list = umq_buf_alloc(0, umq_buf_cnt, UMQ_INVALID_HANDLE, nullptr);
         if (tx_buf_list == nullptr) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_buf_alloc() failed for TX, local umq: %llu, ret: %p\n",
+                static_cast<unsigned long long>(m_local_umqh), tx_buf_list);
             return DpRearmTxInterrupt();
         }
 
@@ -1291,6 +1340,9 @@ public:
                 errno = EIO;
                 return -1;
             } else {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() failed for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), ret);
                 errno = EIO;
             }
             umq_buf_list_t head = { bad_qbuf };
@@ -1314,6 +1366,10 @@ public:
                 tx_total_len = HandleBadQBuf(tx_buf_list, bad_qbuf, head_qbuf,
                    _unsolicited_wr_num, _unsolicited_bytes, _unsignaled_wr_num);
             }
+        } else {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_post() failed for TX without bad_qbuf, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), ret);
         }
 
         // After posting and before polling, the time for updating the count cna be concealed within the waiting period
@@ -1339,18 +1395,30 @@ public:
 
         if (buf == nullptr || len == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Send invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
- 
+
         if (m_closed.load(std::memory_order_relaxed)) {
             errno = EPIPE; // Broken pipe if connection is closed
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Send socket is closed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
- 
+
         if (m_tx.m_get_and_ack_event) {
             do {
                 if (GetAndAckEvent(UMQ_IO_TX) < 0) {
                     errno = EIO;
+                    char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                    RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                        "Send GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                        m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                     return -1;
                 }
                 PollTx(m_tx.m_retrieve_threshold, true); // true indicates handling event
@@ -1376,6 +1444,8 @@ public:
  
         umq_buf_t *tx_buf_list = umq_buf_alloc(brpc_iobuf_size, num_bufs_needed, UMQ_INVALID_HANDLE, nullptr);
         if (tx_buf_list == nullptr) {
+            RPC_ADPT_VLOG_WARN("umq_buf_alloc() failed for TX, local umq: %llu, ret: %p\n",
+                               static_cast<unsigned long long>(m_local_umqh), tx_buf_list);
             return DpRearmTxInterrupt();
         }
  
@@ -1402,6 +1472,10 @@ public:
             if (current_buf->buf_data == nullptr) {
                 umq_buf_free(tx_buf_list);
                 errno = ENOMEM;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Send failed due to null TX buffer data, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
  
@@ -1472,9 +1546,15 @@ public:
                 errno = EAGAIN;
                 m_tx.m_need_fc_awake.store(true, std::memory_order_relaxed);
             } else if (post_result == -UMQ_ERR_EFLOWCTL) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() returned EFLOWCTL for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), post_result);
                 errno = EIO;
                 return -1;
             } else {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() failed for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), post_result);
                 errno = EIO;
             }
  
@@ -1499,6 +1579,9 @@ public:
  
             return static_cast<ssize_t>(copied_total);
         } else {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_post() failed for TX without bad_qbuf, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), post_result);
             errno = EIO;
             return -1;
         }
@@ -1519,6 +1602,10 @@ public:
  
         if (buf == nullptr || len == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Recv invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
  
@@ -1531,6 +1618,10 @@ public:
         if (m_rx.m_get_and_ack_event) {
             if (GetAndAckEvent(UMQ_IO_RX) < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "Recv GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
             m_rx.m_get_and_ack_event = false;
@@ -1573,9 +1664,13 @@ public:
             poll_num = UmqPollAndRefillRx(buf_array, POLL_BATCH_MAX);
             if (poll_num < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Recv UmqPollAndRefillRx() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             } else if (poll_num == 0) {
-                m_rx.m_poll = false; 
+                m_rx.m_poll = false;
             }
         }
 
@@ -1606,8 +1701,11 @@ public:
                     // try to wake up tx if necessary
                     bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                     if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd%fd failed, errno: %d\n", m_event_fd,
-                                          errno);
+                        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "eventfd_write() failed, event fd: %d, errno: %d, errmsg: %s\n",
+                            m_event_fd, errno,
+                            NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                     }
 
                     if (buf_array[i]->total_data_size == 0) {
@@ -1628,7 +1726,8 @@ public:
                     umq_buf_free(buf_array[i]);
                     QBUF_LIST_FIRST(&m_rx.m_umq_buf_cache_head) = next_buf;
                 } else {
-                    memcpy_s(user_buf_ptr + copied_buf, remaining_user_buf, buf_array[i]->buf_data, remaining_user_buf);
+                    memcpy_s(user_buf_ptr + copied_buf, remaining_user_buf, buf_array[i]->buf_data,
+                             remaining_user_buf);
                     m_rx.m_remaining_size += buf_array[i]->data_size - remaining_user_buf;
                     buf_array[i]->buf_data = static_cast<char*>(buf_array[i]->buf_data) + remaining_user_buf;
                     buf_array[i]->data_size -= remaining_user_buf;
@@ -1655,6 +1754,10 @@ public:
 
             if (m_flow_control_failed == true) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Recv flow control failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
  
@@ -1665,9 +1768,13 @@ public:
  
             if (RearmRxInterrupt() < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Recv RearmRxInterrupt() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
- 
+
             errno = EAGAIN;
             return -1;
         }
@@ -1683,11 +1790,19 @@ public:
 
         if (buf == nullptr || nbyte == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Read invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
 
         if (m_closed.load(std::memory_order_relaxed)) {
             errno = EPIPE; // Broken pipe if connection is closed
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Read socket is closed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
 
@@ -1700,6 +1815,10 @@ public:
         if (m_rx.m_get_and_ack_event) {
             if (GetAndAckEvent(UMQ_IO_RX) < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "Read GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
             m_rx.m_get_and_ack_event = false;
@@ -1712,6 +1831,10 @@ public:
             max_buf_size = static_cast<uint32_t>(nbyte);
             if (max_buf_size != nbyte) {
                 errno = EINVAL;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Read invalid max_buf_size conversion, fd: %d, nbyte: %zu, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, nbyte, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
         }
@@ -1724,13 +1847,15 @@ public:
             poll_num = UmqPollAndRefillRx(buf_array, POLL_BATCH_MAX);
             if (poll_num < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Read UmqPollAndRefillRx() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             } else if (poll_num > 0) {
                 break;
             } else { // poll_num == 0
                 if (!is_blocking) {
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                      "Read: Non-blocking mode, no data available, setting errno = EAGAIN\n");
                     errno = EAGAIN;
                     return -1;
                 } else {
@@ -1766,8 +1891,11 @@ public:
                         // Handle flow control update
                         bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                         if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd %d failed, errno: %d\n", m_event_fd,
-                                              errno);
+                            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                "eventfd_write() failed, event fd: %d, errno: %d, errmsg: %s\n",
+                                m_event_fd, errno,
+                                NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                         }
 
                         QBUF_LIST_NEXT(buf_array[i]) = nullptr;
@@ -1805,6 +1933,10 @@ public:
 
             if (m_flow_control_failed == true) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Read flow control failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
 
@@ -1815,6 +1947,10 @@ public:
 
             if (RearmRxInterrupt() < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Read RearmRxInterrupt() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
 
@@ -1833,11 +1969,19 @@ public:
 
         if (buf == nullptr || nbyte == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Write invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
 
         if (m_closed.load(std::memory_order_relaxed)) {
             errno = EPIPE; // Broken pipe if connection is closed
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Write socket is closed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
 
@@ -1845,6 +1989,10 @@ public:
             do {
                 if (GetAndAckEvent(UMQ_IO_TX) < 0) {
                     errno = EIO;
+                    char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                    RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                        "Write GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                        m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                     return -1;
                 }
                 PollTx(m_tx.m_retrieve_threshold, true); // true indicates handling event
@@ -1870,6 +2018,9 @@ public:
 
         umq_buf_t *tx_buf_list = umq_buf_alloc(brpc_iobuf_size, num_bufs_needed, UMQ_INVALID_HANDLE, nullptr);
         if (tx_buf_list == nullptr) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_buf_alloc() failed for TX, local umq: %llu, ret: %p\n",
+                static_cast<unsigned long long>(m_local_umqh), tx_buf_list);
             return DpRearmTxInterrupt();
         }
         
@@ -1891,6 +2042,10 @@ public:
             if (current_buf->buf_data == nullptr) {
                 umq_buf_free(tx_buf_list);
                 errno = ENOMEM;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Write failed due to null TX buffer data, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
  
@@ -1961,9 +2116,15 @@ public:
                 errno = EAGAIN;
                 m_tx.m_need_fc_awake.store(true, std::memory_order_relaxed);
             } else if (post_result == -UMQ_ERR_EFLOWCTL) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() returned EFLOWCTL for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), post_result);
                 errno = EIO;
                 return -1;
             } else {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() failed for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), post_result);
                 errno = EIO;
             }
  
@@ -1989,6 +2150,9 @@ public:
  
             return static_cast<ssize_t>(copied_total);
         } else {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_post() failed for TX without bad_qbuf, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), post_result);
             errno = EIO;
             return -1;
         }
@@ -2009,11 +2173,19 @@ public:
 
         if (buf == nullptr || len == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "SendTo invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n", m_fd, -1, errno,
+                NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
- 
+
         if (m_closed.load(std::memory_order_relaxed)) {
             errno = EPIPE; // Broken pipe if connection is closed
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "SendTo socket is closed, fd: %d, ret: %d, errno: %d, errmsg: %s\n", m_fd, -1, errno,
+                NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
  
@@ -2021,6 +2193,10 @@ public:
             do {
                 if (GetAndAckEvent(UMQ_IO_TX) < 0) {
                     errno = EIO;
+                    char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                    RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                        "SendTo GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                        m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                     return -1;
                 }
                 PollTx(m_tx.m_retrieve_threshold, true); // true indicates handling event
@@ -2046,6 +2222,9 @@ public:
  
         umq_buf_t *tx_buf_list = umq_buf_alloc(brpc_iobuf_size, num_bufs_needed, UMQ_INVALID_HANDLE, nullptr);
         if (tx_buf_list == nullptr) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_buf_alloc() failed for TX, local umq: %llu, ret: %p\n",
+                static_cast<unsigned long long>(m_local_umqh), tx_buf_list);
             return DpRearmTxInterrupt();
         }
  
@@ -2072,6 +2251,10 @@ public:
             if (current_buf->buf_data == nullptr) {
                 umq_buf_free(tx_buf_list);
                 errno = ENOMEM;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "SendTo failed due to null TX buffer data, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
  
@@ -2142,9 +2325,15 @@ public:
                 errno = EAGAIN;
                 m_tx.m_need_fc_awake.store(true, std::memory_order_relaxed);
             } else if (post_result == -UMQ_ERR_EFLOWCTL) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() returned EFLOWCTL for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), post_result);
                 errno = EIO;
                 return -1;
             } else {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() failed for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), post_result);
                 errno = EIO;
             }
  
@@ -2170,6 +2359,9 @@ public:
  
             return static_cast<ssize_t>(copied_total);
         } else {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_post() failed for TX without bad_qbuf, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), post_result);
             errno = EIO;
             return -1;
         }
@@ -2190,6 +2382,10 @@ public:
 
         if (buf == nullptr || len == 0) {
             errno = EINVAL;
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "RecvFrom invalid argument, fd: %d, ret: %d, errno: %d, errmsg: %s\n", m_fd, -1, errno,
+                NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return -1;
         }
  
@@ -2202,6 +2398,10 @@ public:
         if (m_rx.m_get_and_ack_event) {
             if (GetAndAckEvent(UMQ_IO_RX) < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "RecvFrom GetAndAckEvent() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
             m_rx.m_get_and_ack_event = false;
@@ -2214,6 +2414,10 @@ public:
             max_buf_size = static_cast<uint32_t>(len);
             if (max_buf_size != len) {
                 errno = EINVAL;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "RecvFrom invalid max_buf_size conversion, fd: %d, len: %zu, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, len, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
         }
@@ -2226,13 +2430,15 @@ public:
             poll_num = UmqPollAndRefillRx(buf_array, POLL_BATCH_MAX);
             if (poll_num < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "RecvFrom UmqPollAndRefillRx() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1; // Error occurred during polling
             } else if (poll_num > 0) {
                 break;
             } else { // poll_num == 0
                 if (!is_blocking) {
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                      "Recv: Non-blocking mode, no data available, setting errno = EAGAIN\n");
                     errno = EAGAIN;
                     return -1;
                 } else {
@@ -2262,8 +2468,11 @@ public:
                         // Handle flow control update
                         bool need_fc_awake = m_tx.m_need_fc_awake.exchange(false, std::memory_order_relaxed);
                         if (need_fc_awake && eventfd_write(m_event_fd, 1) == -1) {
-                            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd %d failed, errno: %d\n", m_event_fd,
-                                              errno);
+                            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                                "eventfd_write() failed, event fd: %d, errno: %d, errmsg: %s\n",
+                                m_event_fd, errno,
+                                NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                         }
 
                         QBUF_LIST_NEXT(buf_array[i]) = nullptr;
@@ -2310,6 +2519,10 @@ public:
 
             if (m_flow_control_failed == true) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "RecvFrom flow control failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
  
@@ -2320,9 +2533,13 @@ public:
  
             if (RearmRxInterrupt() < 0) {
                 errno = EIO;
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "RecvFrom RearmRxInterrupt() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, -1, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 return -1;
             }
- 
+
             errno = EAGAIN;
             return -1;
         }
@@ -2342,8 +2559,10 @@ public:
                     // Update m_isblocking based on the origin fd blocking state
                     m_isblocking = IsBlocking(m_fd);
                 } else {
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl set fd %d failed, ret is %d, errno %d\n", m_fd, ret,
-                                      errno);
+                    char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                    RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                        "fcntl() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                        m_fd, ret, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 }
                 break;
             case F_GETOWN: // Get process ID or process group ID receiving SIGIO/SIGURG signals
@@ -2379,8 +2598,10 @@ public:
                     // Update m_isblocking based on the origin fd blocking state
                     m_isblocking = IsBlocking(m_fd);
                 } else {
-                    RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "fcntl64 set fd %d failed, ret is %d, errno %d\n", m_fd, ret,
-                                      errno);
+                    char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                    RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                        "fcntl64() failed, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                        m_fd, ret, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                 }
                 break;
             case F_GETOWN: // Get process ID or process group ID receiving SIGIO/SIGURG signals
@@ -2415,8 +2636,10 @@ public:
                 // set m_isblocking base on origin fd blocking state
                 m_isblocking = IsBlocking(m_fd);
             } else {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "ioctl set fd %d FIONBIO failed, ret is %d, errno %d\n", m_fd,
-                                  ret, errno);
+                char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                    "ioctl() failed for FIONBIO, fd: %d, ret: %d, errno: %d, errmsg: %s\n",
+                    m_fd, ret, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             }
         } else {
             RPC_ADPT_VLOG_WARN("ioctl set fd %d, request %d may be not supported\n", m_fd, request);
@@ -2480,19 +2703,37 @@ public:
     ALWAYS_INLINE int RearmShareJfrRxInterrupt()
     {
         umq_interrupt_option_t rx_option = { UMQ_INTERRUPT_FLAG_IO_DIRECTION, UMQ_IO_RX };
-        return umq_rearm_interrupt(m_main_umqh, false, &rx_option);
+        int ret = umq_rearm_interrupt(m_main_umqh, false, &rx_option);
+        if (ret < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_rearm_interrupt() failed for share jfr RX, main umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_main_umqh), ret);
+        }
+        return ret;
     }
 
     ALWAYS_INLINE int RearmRxInterrupt()
     {
         umq_interrupt_option_t rx_option = { UMQ_INTERRUPT_FLAG_IO_DIRECTION, UMQ_IO_RX };
-        return umq_rearm_interrupt(m_local_umqh, false, &rx_option);
+        int ret = umq_rearm_interrupt(m_local_umqh, false, &rx_option);
+        if (ret < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_rearm_interrupt() failed for RX, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), ret);
+        }
+        return ret;
     }
 
     ALWAYS_INLINE int RearmTxInterrupt()
     {
         umq_interrupt_option_t tx_option = { UMQ_INTERRUPT_FLAG_IO_DIRECTION, UMQ_IO_TX };
-        return umq_rearm_interrupt(m_local_umqh, true, &tx_option);
+        int ret = umq_rearm_interrupt(m_local_umqh, true, &tx_option);
+        if (ret < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_rearm_interrupt() failed for TX, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), ret);
+        }
+        return ret;
     }
 
     uint32_t getLeftPostRxNum(uint64_t umq_handle)
@@ -2501,7 +2742,9 @@ public:
         umq_cfg_get_t cfg = {0};
         int res = umq_cfg_get(umq_handle, &cfg);
         if (res != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get umq cfg\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_cfg_get() failed, umq handle: %llu, ret: %d\n",
+                static_cast<unsigned long long>(umq_handle), res);
         } else {
             left_post_rx_num = cfg.rqe_post_factor * cfg.rx_depth;
             RPC_ADPT_VLOG_INFO("Successfully get umq cfg, left_post_rx_num = %u\n", left_post_rx_num);
@@ -2525,14 +2768,18 @@ public:
             cur_post_rx_num = left_post_rx_num > POST_BATCH_MAX ? POST_BATCH_MAX : left_post_rx_num;
             umq_buf_t *rx_buf_list = umq_buf_alloc(BrpcIOBufSize(), cur_post_rx_num, UMQ_INVALID_HANDLE, &option);
             if (rx_buf_list == nullptr) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to allocate RX buffer, RX depth: %u\n",
-                                  m_rx_window_capacity);
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_buf_alloc() failed, RX depth: %u, ret: %p\n",
+                    m_rx_window_capacity, rx_buf_list);
                 return -1;
             }
 
             umq_buf_t *bad_qbuf = nullptr;
-            if (umq_post(umq_handle, rx_buf_list, UMQ_IO_RX, &bad_qbuf) != UMQ_SUCCESS) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to post RX buffer, RX depth: %u\n", m_rx_window_capacity);
+            int umq_ret = umq_post(umq_handle, rx_buf_list, UMQ_IO_RX, &bad_qbuf);
+            if (umq_ret != UMQ_SUCCESS) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_post() failed, RX depth: %u, ret: %d\n",
+                    m_rx_window_capacity, umq_ret);
                 m_rx.m_window_size += HandleBadQBuf(rx_buf_list, bad_qbuf);
                 return -1;
             }
@@ -2552,8 +2799,7 @@ public:
         int local_umq_state = QUEUE_STATE_IDLE;
         local_umq_state = umq_state_get(m_local_umqh);
         if (local_umq_state != QUEUE_STATE_READY) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Wait umq to be ready failed, umq state %d\n",
-                              local_umq_state);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_state_get() failed to reach ready, ret: %d\n", local_umq_state);
             return -1;
         }
 
@@ -2610,6 +2856,11 @@ public:
         int poll_num = use_polling ? PollingEpoll::GetInstance().GetAndPopQbuf(m_local_umqh, buf) :
                                      umq_poll(m_local_umqh, UMQ_IO_RX, buf, max_buf_size);
         if (poll_num < 0 || (poll_num == 0 && m_rx.m_window_size == 0)) {
+            if (!use_polling && poll_num < 0) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_poll() failed, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), poll_num);
+            }
             return -1;
         }
 
@@ -2622,9 +2873,11 @@ public:
              * try to switch to tcp/ip until poll_num & m_rx.m_window_size both equal to zero */
             if (rx_buf_list != nullptr) {
                 umq_buf_t *bad_qbuf = nullptr;
-                if (umq_post(m_local_umqh, rx_buf_list, UMQ_IO_RX, &bad_qbuf) == UMQ_SUCCESS) {
+                int umq_ret = umq_post(m_local_umqh, rx_buf_list, UMQ_IO_RX, &bad_qbuf);
+                if (umq_ret == UMQ_SUCCESS) {
                     m_rx.m_window_size += m_rx.m_refill_threshold;
                 } else if ((m_rx.m_window_size += HandleBadQBuf(rx_buf_list, bad_qbuf)) == 0) {
+                    RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_post() failed in refill, ret: %d\n", umq_ret);
                     return -1;
                 }
             }
@@ -2635,7 +2888,11 @@ public:
 
     int AddQbuf(umq_buf_t *qbuf)
     {
-        if (rxQueue == nullptr || rxQueue->Enqueue(qbuf) != 0) {
+        int enqueue_ret = 0;
+        if (rxQueue == nullptr || (enqueue_ret = rxQueue->Enqueue(qbuf)) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "AddQbuf failed, fd: %d, ret: %d\n",
+                m_fd, rxQueue == nullptr ? -1 : enqueue_ret);
             return -1;
         }
 
@@ -2703,6 +2960,9 @@ private:
     int GetAndPopQbuf(umq_buf_t **buf, uint32_t max_buf_size)
     {
         if (rxQueue == nullptr) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "GetAndPopQbuf failed, rx queue is null, fd: %d, ret: %d\n",
+                m_fd, -1);
             return -1;
         }
 
@@ -2729,6 +2989,9 @@ private:
         }
 
         if (main_umqs.empty()) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "Main umq list is empty, local eid:" EID_FMT ", ret: %llu\n",
+                EID_ARGS(*localEid), static_cast<unsigned long long>(UMQ_INVALID_HANDLE));
             return UMQ_INVALID_HANDLE;
         }
 
@@ -2747,7 +3010,9 @@ private:
         ScopedUbExclusiveLocker sLock(EidUmqTable::GetMainMutex());
         uint64_t main_umq = GetOrCreateMainUmq(cfg, localEid);
         if (main_umq == UMQ_INVALID_HANDLE) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to create main umq\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "GetOrCreateMainUmq() failed, ret: %llu\n",
+                static_cast<unsigned long long>(main_umq));
             return UMQ_INVALID_HANDLE;
         }
 
@@ -2756,7 +3021,9 @@ private:
         cfg->umq_ctx = (uint64_t)m_fd;
         uint64_t sub_umq = umq_create(cfg);
         if (sub_umq == UMQ_INVALID_HANDLE) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to create sub umq\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_create() failed for sub umq, ret: %llu\n",
+                static_cast<unsigned long long>(sub_umq));
             return UMQ_INVALID_HANDLE;
         }
 
@@ -2772,7 +3039,7 @@ private:
         umq_dev_info_t umq_dev_info = {};
         int ret = umq_dev_info_get(dev_name, UMQ_TRANS_MODE_UB, &umq_dev_info);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to get device information\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_dev_info_get() failed, ret: %d\n", ret);
             return -1;
         }
 
@@ -2783,6 +3050,9 @@ private:
             }
         }
 
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "Failed to find eid index in device info, eid_idx: %u, ret: %d\n",
+            eid_idx, -1);
         return -1;
     }
 
@@ -2847,8 +3117,9 @@ private:
                 queue_cfg.dev_info.dev.eid_idx = context->GetEidIdx();
 
                 if (GetDevEid(queue_cfg.dev_info.dev.dev_name, context->GetEidIdx(), &localEid) != 0) {
-                    RPC_ADPT_VLOG_WARN("Failed to get eid by dev name:%s and eid index:%d \n", context->GetDevNameStr(),
-                                       context->GetEidIdx());
+                    RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                        "Failed to get eid by dev name:%s and eid index:%d \n",
+                        context->GetDevNameStr(), context->GetEidIdx());
                 }
             } else {
                 // init use bonding dev
@@ -2891,7 +3162,9 @@ private:
 
         m_local_umqh = CreateSubUmq(&queue_cfg, &localEid);
         if (m_local_umqh == UMQ_INVALID_HANDLE) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to execute umq_create failed\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "CreateSubUmq() failed, ret: %llu\n",
+                static_cast<unsigned long long>(m_local_umqh));
             return ubsocket::Error::kUMQ_CREATE | ubsocket::Error::kRETRYABLE | ubsocket::Error::kDEGRADABLE;
         }
 
@@ -2926,7 +3199,12 @@ private:
             m_rx.m_event_num = 0;
         }
         
-        (void)umq_unbind(m_local_umqh);
+        int ret = umq_unbind(m_local_umqh);
+        if (ret != UMQ_SUCCESS) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_unbind() failed, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), ret);
+        }
         FlushTx();
 
         Brpc::Context *context = Brpc::Context::GetContext();
@@ -2964,22 +3242,33 @@ private:
     {
         if (m_local_umqh != UMQ_INVALID_HANDLE) {
             // need to flush
-            (void)umq_destroy(m_local_umqh);
+            int ret = umq_destroy(m_local_umqh);
+            if (ret != UMQ_SUCCESS) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_destroy() failed, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), ret);
+            }
             DeleteSubUmq();
             m_local_umqh = UMQ_INVALID_HANDLE;
             Context::FetchSub();
         }
     }
-
     static int ValidateProtocol(int fd, uint64_t &protocol_negotiation, ssize_t &protocol_negotiation_recv_size)
     {
-        protocol_negotiation_recv_size = 
+        protocol_negotiation_recv_size =
            RecvSocketData(fd, &protocol_negotiation, sizeof(protocol_negotiation), NEGOTIATE_TIMEOUT_MS);
         if (protocol_negotiation_recv_size <= 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Validate protocol failed, fd: %d, ret: %zd\n",
+                fd, protocol_negotiation_recv_size);
             return -1;
         }
-        
-        if (protocol_negotiation_recv_size != sizeof(protocol_negotiation) || protocol_negotiation != CONTROL_PLANE_PROTOCOL_NEGOTIATION) {
+
+        if (protocol_negotiation_recv_size != sizeof(protocol_negotiation) ||
+            protocol_negotiation != CONTROL_PLANE_PROTOCOL_NEGOTIATION) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Validate protocol mismatch, fd: %d, ret: %zd\n",
+                fd, protocol_negotiation_recv_size);
             return protocol_negotiation_recv_size;
         }
 
@@ -3023,7 +3312,9 @@ private:
         size_t req_remain_size = sizeof(req) - sizeof(req.magic_number);
         if (RecvSocketData(new_fd, req_buf, req_remain_size, CONTROL_PLANE_TIMEOUT_MS) !=
             static_cast<int>(req_remain_size)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive negotiate request in accept, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to receive negotiate request in accept, fd: %d\n",
+                new_fd);
             return -1;
         }
         ub_trans_mode local_trans_mode = context->GetUbTransMode();
@@ -3037,8 +3328,9 @@ private:
         mPeerAllSocketIds.clear();
         if (rsp.ret_code == 0 && req.is_bonding != 0 && has_socket_id == 1 && req.has_socket_id == 1) {
             if (req.socket_id_count == 0 || req.socket_id_count > NEGOTIATE_SOCKET_ID_MAX_NUM) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid peer socket count %u in accept, fd: %d\n",
-                                  req.socket_id_count, new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "Invalid peer socket count %u in accept, fd: %d\n",
+                    req.socket_id_count, new_fd);
                 rsp.ret_code = -1;
             } else {
                 mPeerAllSocketIds.assign(req.socket_ids, req.socket_ids + req.socket_id_count);
@@ -3063,14 +3355,16 @@ private:
             rsp.local_eid = connEid;
         }
         if (SendSocketData(new_fd, &rsp, sizeof(rsp), CONTROL_PLANE_TIMEOUT_MS) != static_cast<int>(sizeof(rsp))) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send negotiate response in accept, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to send negotiate response in accept, fd: %d\n",
+                new_fd);
             return -1;
         }
         if (req.is_bonding == 1) {
             umq_route_t connRoute;
             if (RecvSocketData(
                 new_fd, &connRoute, sizeof(umq_route_t), CONTROL_PLANE_TIMEOUT_MS) != sizeof(umq_route_t)) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
                     "Failed to receive remote eid message in accept, Peer IP:%s, fd: %d\n",
                     GetPeerIp().c_str(), new_fd);
                 return -1;
@@ -3078,8 +3372,9 @@ private:
 
             int checkResult = CheckDevAdd(connRoute.dst_eid);
             if (checkResult != 0) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to add dev in accept, Peer IP:%s, fd: %d\n",
-                    GetPeerIp().c_str(), new_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "CheckDevAdd() failed in accept, Peer IP:%s, fd: %d, ret: %d\n",
+                    GetPeerIp().c_str(), new_fd, checkResult);
                 return -1;
             }
         
@@ -3093,7 +3388,13 @@ private:
     void PrintQbufPoolInfo()
     {
         umq_qbuf_pool_stats_t qbuf_pool_stats;
-        umq_stats_qbuf_pool_get(m_main_umqh, &qbuf_pool_stats);
+        int ret = umq_stats_qbuf_pool_get(m_main_umqh, &qbuf_pool_stats);
+        if (ret != UMQ_SUCCESS) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_stats_qbuf_pool_get() failed, main umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_main_umqh), ret);
+            return;
+        }
         if (qbuf_pool_stats.num == 1) {
             uint64_t size_with_data = qbuf_pool_stats.qbuf_pool_info[0].available_mem.split.size_with_data;
             RPC_ADPT_VLOG_INFO("UMQ qbuf pool available buf size in data area: %lu \n", size_with_data);
@@ -3114,14 +3415,16 @@ private:
         local_cp_msg.queue_bind_info_size = umq_bind_info_get(
             socket_fd_obj->GetLocalUmqHandle(), local_cp_msg.queue_bind_info, sizeof(local_cp_msg.queue_bind_info));
         if (local_cp_msg.queue_bind_info_size == 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to execute umq_bind_info_get\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_bind_info_get() failed, ret: %u\n",
+                local_cp_msg.queue_bind_info_size);
             return ubsocket::Error::kUMQ_BIND_INFO_GET | ubsocket::Error::kRETRYABLE | ubsocket::Error::kDEGRADABLE;
         }
 
         size_t len = sizeof(remote_cp_msg) - sizeof(uint64_t);
         if (RecvSocketData(
             new_fd, &remote_cp_msg.queue_bind_info_size, len, CONTROL_PLANE_TIMEOUT_MS) != (ssize_t)len) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to receive remote control message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to receive remote control message, fd: %d\n", new_fd);
             return ubsocket::FromRaw(errno);
         }
         RPC_ADPT_VLOG_DEBUG("recv remote control message, fd: %d, cp msg len: %d, bind info len: %d\n",
@@ -3129,15 +3432,16 @@ private:
 
         if (SendSocketData(
             new_fd, &local_cp_msg, sizeof(local_cp_msg), CONTROL_PLANE_TIMEOUT_MS) != sizeof(local_cp_msg)) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to send local control message, fd: %d\n", new_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send local control message, fd: %d\n", new_fd);
             return ubsocket::FromRaw(errno);
         }
         RPC_ADPT_VLOG_DEBUG("send local control message, fd: %d, cp msg len: %d, bind info len: %d\n",
             new_fd, sizeof(local_cp_msg), local_cp_msg.queue_bind_info_size);
 
-        if (umq_bind(socket_fd_obj->GetLocalUmqHandle(), remote_cp_msg.queue_bind_info,
-            remote_cp_msg.queue_bind_info_size) != UMQ_SUCCESS) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to execute umq_bind\n");
+        int umq_ret = umq_bind(socket_fd_obj->GetLocalUmqHandle(), remote_cp_msg.queue_bind_info,
+                               remote_cp_msg.queue_bind_info_size);
+        if (umq_ret != UMQ_SUCCESS) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_bind() failed, ret: %d\n", umq_ret);
             return ubsocket::Error::kUMQ_BIND | ubsocket::Error::kRETRYABLE | ubsocket::Error::kDEGRADABLE;
         }
         socket_fd_obj->SetBindRemote(true);
@@ -3172,6 +3476,13 @@ private:
     {
         SocketFd *socket_fd_obj = nullptr;
         int event_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+        if (event_fd < 0) {
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "eventfd() failed, ret: %d, errno: %d, errmsg: %s\n",
+                event_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
+            return ubsocket::Error::kUBSOCKET_NEW_SOCKET_FD;
+        }
         try {
             socket_fd_obj = new SocketFd(new_fd, event_fd);
             socket_fd_obj->m_peer_info.peer_ip = peerIp;
@@ -3225,23 +3536,22 @@ private:
 
                     if (!IsOk(ackRet)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to finish ub bind in accept, Peer eid:" EID_FMT
-                                          ", Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                            "Failed to finish ub bind in accept, Peer eid:" EID_FMT ", Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                     }
 
                     if (SendSocketData(new_fd, &ackRet, sizeof(ackRet), CONTROL_PLANE_TIMEOUT_MS) != sizeof(ackRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to send ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to send ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                         return ubsocket::Error::kUBSOCKET_TCP_EXCHANGE;
                     }
 
                     if (RecvSocketData(new_fd, &peerRet, sizeof(peerRet), CONTROL_PLANE_TIMEOUT_MS) !=
                         sizeof(peerRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to receive peer ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to receive peer ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                         return ubsocket::Error::kUBSOCKET_TCP_EXCHANGE;
                     }
 
@@ -3264,8 +3574,7 @@ private:
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
                             "CPU_AFFINITY: %d failed, accept no need to retry,Peer eid:" EID_FMT
                             ",Peer IP:%s, fd: %d\n",
-                            static_cast<int>(peerSchedulePolicy),
-                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                            static_cast<int>(peerSchedulePolicy), EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
 
                         if (degradable) {
                             state = UBHandshakeState::kDEGRADE;
@@ -3279,7 +3588,7 @@ private:
 
                     if (RecvSocketData(new_fd, &otherRouteMessage, sizeof(otherRouteMessage),
                         CONTROL_PLANE_TIMEOUT_MS) != sizeof(otherRouteMessage)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
                             "Failed to receive remote eid message in retry accept, Peer eid:" EID_FMT
                             ",Peer IP:%s, fd: %d\n",
                             EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
@@ -3296,9 +3605,8 @@ private:
                     connEid = otherRouteMessage.other_route.dst_eid;
                     if (CheckDevAdd(connEid) != 0) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to add dev in retry accept,Peer eid:" EID_FMT
-                                          ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
+                            "Failed to add dev in retry accept,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd);
                         ackRet = ubsocket::Error::kUMQ_DEV_ADD | ubsocket::Error::kDEGRADABLE;
                     } else {
                         ackRet = ubsocket::Error::kOK;
@@ -3312,24 +3620,22 @@ private:
 
                     if (!IsOk(ackRet)) {
                         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to finish ub bind in accept, Peer eid:" EID_FMT
-                                          ", Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
+                            "Failed to finish ub bind in accept, Peer eid:" EID_FMT ", Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                     }
 
                     if (SendSocketData(new_fd, &ackRet, sizeof(ackRet), CONTROL_PLANE_TIMEOUT_MS) != sizeof(ackRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to send ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to send ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                         return ubsocket::Error::kUBSOCKET_TCP_EXCHANGE;
                     }
 
                     if (RecvSocketData(new_fd, &peerRet, sizeof(peerRet), CONTROL_PLANE_TIMEOUT_MS) !=
                         sizeof(peerRet)) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                          "Failed to receive peer ack ret, Peer eid:" EID_FMT
-                                          ",Peer IP:%s, fd: %d\n",
-                                          EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
+                        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                            "Failed to receive peer ack ret, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                            EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                         return ubsocket::Error::kUBSOCKET_TCP_EXCHANGE;
                     }
 
@@ -3358,8 +3664,8 @@ private:
 
                 case UBHandshakeState::kFAILED:
                     RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                                      "Failed to get new connect in accept,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
-                                      EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
+                        "Failed to get new connect in accept,Peer eid:" EID_FMT ",Peer IP:%s, fd: %d\n",
+                        EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), new_fd);
                     return ubsocket::Error::kUBSOCKET_UB_ACCEPT;
             }
         }
@@ -3446,7 +3752,7 @@ private:
 
         if (wr_first_buf == nullptr) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "TX umq buffer list is in error, TX user context does not contain the right list\n");
+                "TX umq buffer list is in error, TX user context does not contain the right list\n");
             return -1;
         }
 
@@ -3464,6 +3770,11 @@ private:
         umq_buf_t *buf[POLL_BATCH_MAX];
         int poll_num = umq_poll(m_local_umqh, UMQ_IO_TX, buf, POLL_BATCH_MAX);
         if (poll_num <= 0) {
+            if (poll_num < 0) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_poll() failed for TX, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), poll_num);
+            }
             return poll_num;
         }
 
@@ -3517,13 +3828,17 @@ private:
     ALWAYS_INLINE int DpRearmTxInterrupt()
     {
         umq_interrupt_option_t tx_option = { UMQ_INTERRUPT_FLAG_IO_DIRECTION, UMQ_IO_TX };
-        if (umq_rearm_interrupt(m_local_umqh, false, &tx_option) == 0) {
+        int ret = umq_rearm_interrupt(m_local_umqh, false, &tx_option);
+        if (ret == 0) {
             errno = EAGAIN;
             return -1;
         }
 
         // 1. try to switch to tcp/ip
         // 2. use EIO for now
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_rearm_interrupt() failed for TX, local umq: %llu, ret: %d\n",
+            static_cast<unsigned long long>(m_local_umqh), ret);
         errno = EIO;
         return -1;
     }
@@ -3645,14 +3960,19 @@ private:
 
             poll_cnt = umq_poll(m_local_umqh, UMQ_IO_RX, buf, POLL_BATCH_MAX);
             if (poll_cnt < 0) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "umq_poll() failed for RX flush, local umq: %llu, ret: %d\n",
+                    static_cast<unsigned long long>(m_local_umqh), poll_cnt);
                 break;
             }
 
             for (int i = 0; i < poll_cnt; i++) {
                 if (buf[i]->status == UMQ_FAKE_BUF_FC_UPDATE) {
                     if (eventfd_write(m_event_fd, 1) == -1) {
-                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "write event fd %d failed, errno %d\n", m_event_fd,
-                                          errno);
+                        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+                        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                            "eventfd_write() failed, event fd: %d, errno: %d, errmsg: %s\n",
+                            m_event_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
                     }
                 }
                 umq_buf_free(buf[i]);
@@ -3682,6 +4002,9 @@ private:
         if (events == 0) {
             return 0;
         } else if (events < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_get_cq_event() failed, local umq: %llu, ret: %d\n",
+                static_cast<unsigned long long>(m_local_umqh), events);
             return -1;
         }
 
@@ -3700,6 +4023,7 @@ private:
 
         int poll_num = GetAndPopQbuf(buf, max_buf_size);
         if (poll_num < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "GetQbuf failed, fd: %d, ret: %d\n", m_fd, poll_num);
             return -1;
         }
 
@@ -3905,12 +4229,15 @@ private:
         trans_info.dev_info.eid.eid = connEid;
         int ret = umq_dev_add(&trans_info);
         if (ret != 0 && ret != -UMQ_ERR_EEXIST) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Failed to add umq dev, ret %d\n", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_dev_add() failed, ret: %d\n", ret);
             return -1;
-        } 
+        }
 
         ret = Context::GetContext()->RegisterAsyncEvent(trans_info);
         if (ret < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "RegisterAsyncEvent() failed, conn eid:" EID_FMT ", ret: %d\n",
+                EID_ARGS(connEid), ret);
             return ret;
         }
         
@@ -3953,6 +4280,9 @@ private:
         RouteListRegistry::Instance().RegisterOrReplaceRouteList(dstEid, filteredList);
 
         if (CheckDevAdd(otherConnRoute.src_eid)!=0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "CheckDevAdd() failed in CheckOtherRoute, src eid:" EID_FMT ", ret: %d\n",
+                EID_ARGS(otherConnRoute.src_eid), -1);
             return -1;
         }
 
@@ -3990,7 +4320,7 @@ private:
         umq_route_list_t route_list;
         int ret = umq_get_route_list(&route, UMQ_TRANS_MODE_UB, &route_list);
         if (ret!=0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to get urma topo\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_get_route_list() failed, ret: %d\n", ret);
             return -1;
         }
 
@@ -4264,8 +4594,10 @@ public:
 
         int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_fd, &tmp_event);
         if (ret != 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Origin epoll control add event fd failed, epfd: %d, fd: %d\n",
-                              epoll_fd, m_fd);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Origin epoll control add event fd failed, epfd: %d, fd: %d, errno: %d, errmsg: %s\n",
+                epoll_fd, m_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
             return ret;
         }
 
@@ -4280,7 +4612,10 @@ public:
     {
         uint64_t cnt;
         if (eventfd_read(m_fd, &cnt) == -1) {
-            RPC_ADPT_VLOG_WARN("read event fd %d failed, errno %d\n", m_fd, errno);
+            char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "eventfd_read() failed for event fd, fd: %d, errno: %d, errmsg: %s\n",
+                m_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
         }
         // notify tx epoll out
         input_event->events |= EPOLLOUT;
@@ -4311,14 +4646,19 @@ public:
     {
         SocketFd *socket_fd_obj = (SocketFd *)Fd<::SocketFd>::GetFdObj(m_origin_fd);
         if (socket_fd_obj == nullptr) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Get socket fd object failed when ack sub umq event, socket fd: %d\n",
+                m_origin_fd);
             return -1;
         }
-
         umq_interrupt_option_t option = {UMQ_INTERRUPT_FLAG_IO_DIRECTION, UMQ_IO_RX};
         int events = umq_get_cq_event(socket_fd_obj->GetLocalUmqHandle(), &option);
         if (events == 0) {
             return 0;
         } else if (events < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_get_cq_event() failed for sub umq, socket fd: %d, ret: %d\n",
+                m_origin_fd, events);
             return -1;
         }
 
@@ -4345,7 +4685,7 @@ public:
         }
 
         if (GetAndAckEvent() < 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Get and ack sub umq failed, socket fd:%d \n", m_origin_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Get and ack sub umq failed, socket fd:%d \n", m_origin_fd);
             return -1;
         }
 
@@ -4353,7 +4693,9 @@ public:
         int poll_num = umq_poll(socket_fd_obj->GetLocalUmqHandle(), UMQ_IO_RX, buf, POLL_BATCH_MAX);
         if (poll_num <= 0) {
             if (socket_fd_obj->RearmRxInterrupt() < 0) {
-                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Rearm sub umq failed, socket fd:%d \n", m_origin_fd);
+                RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                    "Rearm sub umq failed, socket fd:%d, ret: %d\n",
+                    m_origin_fd, poll_num);
                 return -1;
             }
             return 0;
@@ -4435,6 +4777,9 @@ public:
     virtual int AddEpollEvent(int epoll_fd, bool use_polling = false) override
     {
         if (::EpollEvent::AddEpollEvent(epoll_fd, use_polling) < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "::EpollEvent::AddEpollEvent() failed, epfd: %d, fd: %d, ret: %d\n",
+                epoll_fd, m_fd, -1);
             return -1;
         }
 
@@ -4497,6 +4842,9 @@ public:
     virtual int ModEpollEvent(int epoll_fd, struct epoll_event *event, bool use_polling = false) override
     {
         if (::EpollEvent::ModEpollEvent(epoll_fd, event, use_polling) < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "::EpollEvent::ModEpollEvent() failed, epfd: %d, fd: %d, ret: %d\n",
+                epoll_fd, m_fd, -1);
             return -1;
         }
 
@@ -4562,6 +4910,9 @@ public:
     virtual int DelEpollEvent(int epoll_fd, bool use_polling = false) override
     {
         if (::EpollEvent::DelEpollEvent(epoll_fd, use_polling) < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "::EpollEvent::DelEpollEvent() failed, epfd: %d, fd: %d, ret: %d\n",
+                epoll_fd, m_fd, -1);
             return -1;
         }
 
@@ -4578,7 +4929,8 @@ public:
         }
 
         if (event_fd_epoll_event != nullptr &&
-            event_fd_epoll_event->IsAddEpollEvent() && event_fd_epoll_event->DelEpollEvent(epoll_fd, use_polling) < 0) {
+            event_fd_epoll_event->IsAddEpollEvent() &&
+            event_fd_epoll_event->DelEpollEvent(epoll_fd, use_polling) < 0) {
             RPC_ADPT_VLOG_WARN("Failed to delete TX event fd(%d) for umq, fd: %d\n",
                                tx_epoll_event->GetFd(), m_fd);
         }
@@ -4688,6 +5040,9 @@ public:
         }
 
         if (epoll_event->AddEpollEvent(m_fd, use_polling) < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "AddEpollEvent() failed in EpollCtlAdd, epfd: %d, fd: %d, ret: %d\n",
+                m_fd, fd, -1);
             delete epoll_event;
             return -1;
         }
@@ -4700,6 +5055,9 @@ public:
     virtual ALWAYS_INLINE int EpollCtlMod(int fd, struct epoll_event *event, bool use_polling = false) override
     {
         if (::EpollFd::EpollCtlMod(fd, event, use_polling) < 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "::EpollFd::EpollCtlMod() failed, epfd: %d, fd: %d, ret: %d\n",
+                m_fd, fd, -1);
             return -1;
         }
 
@@ -4721,14 +5079,18 @@ public:
 
         if (m_share_jfr_epoll_event_map.count(share_jfr_fd) == 0) {
             RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Share jfr rx epoll event not exist, epfd: %d, socket fd: %d, share jfr fd:%d \n", m_fd,
-                              fd, share_jfr_fd);
+                "Share jfr rx epoll event not exist, epfd: %d, socket fd: %d, share jfr fd:%d \n",
+                m_fd, fd, share_jfr_fd);
             return -1;
         }
 
         auto share_jfr_rx_epoll_event = m_share_jfr_epoll_event_map[share_jfr_fd];
         if (share_jfr_rx_epoll_event != nullptr &&
             share_jfr_rx_epoll_event->ModEpollEvent(m_fd, event, use_polling) != 0) {
+                RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                    "ShareJfrRxEpollEvent::ModEpollEvent() failed, epfd: %d, socket fd: %d, share jfr fd: %d, "
+                    "ret: %d\n",
+                    m_fd, fd, share_jfr_fd, -1);
             return -1;
         }
 
@@ -4754,7 +5116,9 @@ private:
         umq_interrupt_option_t rx_option = {UMQ_INTERRUPT_FLAG_IO_DIRECTION, UMQ_IO_RX};
         int share_jfr_fd = umq_interrupt_fd_get(main_umq, &rx_option);
         if (share_jfr_fd < 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "Get main umq interrupt fd failed, socket fd: %d\n", fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+                "umq_interrupt_fd_get() failed, socket fd: %d, ret: %d\n",
+                fd, share_jfr_fd);
             return -1;
         }
 

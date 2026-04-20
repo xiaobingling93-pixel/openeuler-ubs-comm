@@ -25,9 +25,9 @@ int ShareJfrEventFdEpollEvent::AddEpollEvent(int epoll_fd)
 
     int ret = OsAPiMgr::GetOriginApi()->epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_fd, &tmp_event);
     if (ret != 0) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                          "Origin epoll control add share jfr event fd failed, epfd: %d, share jfr event fd: %d\n",
-                          epoll_fd, m_fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "Origin epoll control add share jfr event fd failed, epfd: %d, share jfr event fd: %d\n",
+            epoll_fd, m_fd);
         return ret;
     }
 
@@ -43,7 +43,10 @@ int ShareJfrEventFdEpollEvent::ProcessEpollEvent(struct epoll_event *input_event
 {
     uint64_t cnt;
     if (eventfd_read(m_fd, &cnt) == -1) {
-        RPC_ADPT_VLOG_WARN("read share jfr event fd %d failed, errno %d\n", m_fd, errno);
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "eventfd_read() failed for share jfr event fd, fd: %d, errno: %d, errmsg: %s\n",
+            m_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
     }
 
     SocketFd *socket_fd_obj = (SocketFd *)Fd<::SocketFd>::GetFdObj(m_origin_fd);
@@ -58,7 +61,10 @@ void ShareJfrEventFdEpollEvent::WakeUp()
 {
     uint64_t notification = 1;
     if (eventfd_write(m_fd, notification) < 0) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Wakeup sub-umq (socket fd %d) failed\n", m_fd);
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "eventfd_write() failed for share jfr wakeup, fd: %d, errno: %d, errmsg: %s\n",
+            m_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
     }
 }
 
@@ -66,9 +72,9 @@ int ShareJfrRxEpollEvent::AddEpollEvent(int epoll_fd, bool use_polling)
 {
     if (!SocketFdEpollTable::Contains(m_fd)) {
         if (::EpollEvent::AddEpollEvent(epoll_fd, use_polling) < 0) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                              "Failed to add share jfr rx fd to epoll, epfd: %d, share jfr rx fd: %d\n", epoll_fd,
-                              m_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+                "Failed to add share jfr rx fd to epoll, epfd: %d, share jfr rx fd: %d\n",
+                epoll_fd, m_fd);
             return -1;
         }
 
@@ -82,17 +88,27 @@ int ShareJfrRxEpollEvent::AddEpollEvent(int epoll_fd, bool use_polling)
     }
 
     int event_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (event_fd < 0) {
+        char errno_buf[NET_STR_ERROR_BUF_SIZE] = {0};
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "eventfd() failed, ret: %d, errno: %d, errmsg: %s\n",
+            event_fd, errno, NetCommon::NN_GetStrError(errno, errno_buf, NET_STR_ERROR_BUF_SIZE));
+        return -1;
+    }
     try {
         event_fd_epoll_event = new ShareJfrEventFdEpollEvent(m_origin_fd, &m_event, event_fd);
     } catch (std::exception &e) {
+        OsAPiMgr::GetOriginApi()->close(event_fd);
         RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "%s\n", e.what());
         return -1;
     }
 
     if (event_fd_epoll_event->AddEpollEvent(epoll_fd) < 0) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
-                          "Failed to add share jfr event fd to epoll, epfd: %d, share jfr event fd: %d\n", epoll_fd,
-                          event_fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "Failed to add share jfr event fd to epoll, epfd: %d, share jfr event fd: %d\n",
+            epoll_fd, event_fd);
+        delete event_fd_epoll_event;
+        event_fd_epoll_event = nullptr;
         return -1;
     }
 
@@ -103,8 +119,9 @@ int ShareJfrRxEpollEvent::ModEpollEvent(int epoll_fd, struct epoll_event *event,
 {
     if (!IsAddEpollEvent() && (event->events & EPOLLIN)) {
         if (AddEpollEvent(epoll_fd, use_polling) < 0) {
-            RPC_ADPT_VLOG_WARN("Failed to modify(add) share jfr RX interrupt fd(%d) for main umq, fd: %d\n", m_fd,
-                               m_origin_fd);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+                "Failed to modify(add) share jfr RX interrupt fd(%d) for main umq, fd: %d\n", m_fd,
+                m_origin_fd);
         } else {
             RPC_ADPT_VLOG_DEBUG("Modify(add) share jfr RX interrupt fd(%d) for main umq successful, fd: %d\n", m_fd,
                                 m_origin_fd);
@@ -117,13 +134,17 @@ int ShareJfrRxEpollEvent::ModEpollEvent(int epoll_fd, struct epoll_event *event,
 int ShareJfrRxEpollEvent::DelEpollEvent(int epoll_fd, bool use_polling)
 {
     if (::EpollEvent::DelEpollEvent(epoll_fd, use_polling) < 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET,
+            "Failed to delete share jfr rx fd from epoll, epfd: %d, share jfr rx fd: %d\n",
+            epoll_fd, m_fd);
         return -1;
     }
 
     if (event_fd_epoll_event != nullptr && event_fd_epoll_event->IsAddEpollEvent() &&
         event_fd_epoll_event->DelEpollEvent(epoll_fd, use_polling) < 0) {
-        RPC_ADPT_VLOG_WARN("Failed to delete share jfr event fd(%d) for umq, fd: %d\n", event_fd_epoll_event->GetFd(),
-                           m_fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "Failed to delete share jfr event fd(%d) for umq, fd: %d\n",
+            event_fd_epoll_event->GetFd(), m_fd);
     }
 
     return 0;
@@ -133,8 +154,9 @@ int ShareJfrRxEpollEvent::ProcessEpollEvent(struct epoll_event *input_event, str
                                             int max_events, bool use_polling)
 {
     if (max_events <= 0) {
-        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Param max_events: %d invalid, need greater than 0, share jfr fd: %d\n",
-                          max_events, m_fd);
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "Param max_events: %d invalid, need greater than 0, share jfr fd: %d\n",
+            max_events, m_fd);
         return -1;
     }
 
@@ -225,10 +247,19 @@ int ShareJfrRxEpollEvent::GetAndAckEvent()
     if (events == 0) {
         return 0;
     } else if (events < 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_get_cq_event() failed, main umq: %llu, ret: %d\n",
+            static_cast<unsigned long long>(m_main_umq), events);
         return -1;
     }
 
-    umq_rearm_interrupt(m_main_umq, false, &option);
+    int rearm_ret = umq_rearm_interrupt(m_main_umq, false, &option);
+    if (rearm_ret != UMQ_SUCCESS) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_rearm_interrupt() failed, main umq: %llu, ret: %d\n",
+            static_cast<unsigned long long>(m_main_umq), rearm_ret);
+        return -1;
+    }
 
     AckEvent(m_event_num, events, &option);
     return 0;
@@ -237,11 +268,17 @@ int ShareJfrRxEpollEvent::GetAndAckEvent()
 int ShareJfrRxEpollEvent::PollShareJfrAndRefillRx(umq_buf_t **buf, uint32_t max_buf_size)
 {
     if (GetAndAckEvent() < 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,
+            "GetAndAckEvent() failed for share jfr, main umq: %llu, ret: %d\n",
+            static_cast<unsigned long long>(m_main_umq), -1);
         return -1;
     }
 
     int poll_num = umq_poll(m_main_umq, UMQ_IO_RX, buf, max_buf_size);
     if (poll_num < 0) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_poll() failed, main umq: %llu, ret: %d\n",
+            static_cast<unsigned long long>(m_main_umq), poll_num);
         return -1;
     }
 
@@ -251,11 +288,20 @@ int ShareJfrRxEpollEvent::PollShareJfrAndRefillRx(umq_buf_t **buf, uint32_t max_
 
     umq_alloc_option_t option = {UMQ_ALLOC_FLAG_HEAD_ROOM_SIZE, sizeof(IOBuf::Block)};
     umq_buf_t *rx_buf_list = umq_buf_alloc(BrpcIOBufSize(), poll_num, UMQ_INVALID_HANDLE, &option);
-    if (rx_buf_list != nullptr) {
-        umq_buf_t *bad_qbuf = nullptr;
-        if (umq_post(m_main_umq, rx_buf_list, UMQ_IO_RX, &bad_qbuf) != UMQ_SUCCESS) {
-            umq_buf_free(bad_qbuf);
-        }
+    if (rx_buf_list == nullptr) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_buf_alloc() failed, main umq: %llu, ret: %p\n",
+            static_cast<unsigned long long>(m_main_umq), rx_buf_list);
+        return poll_num;
+    }
+
+    umq_buf_t *bad_qbuf = nullptr;
+    int post_ret = umq_post(m_main_umq, rx_buf_list, UMQ_IO_RX, &bad_qbuf);
+    if (post_ret != UMQ_SUCCESS) {
+        RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
+            "umq_post() failed, main umq: %llu, ret: %d\n",
+            static_cast<unsigned long long>(m_main_umq), post_ret);
+        umq_buf_free(bad_qbuf);
     }
 
     return poll_num;

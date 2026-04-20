@@ -195,7 +195,7 @@ public:
         errno_t ret = strncpy_s(this->name, sizeof(this->name), name,
                                 std::min(strlen(name), static_cast<size_t>(TRACE_INFO_MAX_LEN)));
         if (ret != EOK) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "[HTRACER] Failed to strncpy name, err: %d", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "[HTRACER] Failed to strncpy name, err: %d\n", ret);
             this->name[0] = '\0';
         }
     }
@@ -219,7 +219,7 @@ public:
         errno_t ret = strncpy_s(this->name, sizeof(this->name), info.GetName().c_str(),
                                 std::min(strlen(info.GetName().c_str()), static_cast<size_t>(TRACE_INFO_MAX_LEN)));
         if (ret != EOK) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "[HTRACER] Failed to strncpy name, err: %d", ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "[HTRACER] Failed to strncpy name, err: %d\n", ret);
             this->name[0] = '\0';
             return;
         }

@@ -244,7 +244,7 @@ protected:
         } else if (m_ehdr.e_type == ET_DYN) {
             RPC_ADPT_VLOG_INFO("Parsing position-independent executable or shared object file\n");
         } else {
-            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket,  "Invalid ELF file\n");
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Invalid ELF file\n");
             return false;
         }
 
