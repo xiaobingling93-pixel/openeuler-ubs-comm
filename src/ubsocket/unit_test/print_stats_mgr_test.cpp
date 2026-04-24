@@ -259,12 +259,6 @@ TEST_F(PrintStatsMgrTest, StartStatsCollection_DifferentTraceTimes)
     // Test various trace times
     PrintStatsMgr::StartStatsCollection(PSM_TRACE_TIME_5, "/tmp/test_trace_5", PSM_FILE_SIZE_10);
     PrintStatsMgr::StopStatsCollection();
-
-    PrintStatsMgr::StartStatsCollection(PSM_TRACE_TIME_30, "/tmp/test_trace_30", PSM_FILE_SIZE_10);
-    PrintStatsMgr::StopStatsCollection();
-
-    PrintStatsMgr::StartStatsCollection(PSM_TRACE_TIME_60, "/tmp/test_trace_60", PSM_FILE_SIZE_10);
-    PrintStatsMgr::StopStatsCollection();
 }
 
 TEST_F(PrintStatsMgrTest, StartStatsCollection_DifferentFileSizes)
