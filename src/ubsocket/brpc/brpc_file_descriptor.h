@@ -41,6 +41,7 @@
 #include "scope_exit.h"
 #include "error.h"
 #include "brpc_thread_pool.h"
+#include "leaky_singleton.h"
 
 #define UMQ_BIND_INFO_SIZE_MAX  (512)
 #define DIVIDED_NUMBER          (2)
@@ -135,13 +136,10 @@ protected:
     bool m_rx_use_tcp = false;
 }; 
 
-class EidRegistry {
+class EidRegistry : public ubsocket::LeakySingleton<EidRegistry> {
+    friend ubsocket::LeakySingleton<EidRegistry>;
+
 public:
-    static EidRegistry &Instance()
-    {
-        static EidRegistry inst;
-        return inst;
-    }
     bool RegisterEid(const umq_eid_t& eid) {
         ScopedUbExclusiveLocker sLock(m_mutex);
         return m_registered_eids.insert(eid).second;
@@ -202,13 +200,10 @@ private:
     std::unordered_map<umq_eid_t, uint32_t, UmqEidHash> m_eid_index_map; // bonding eidroute_list index
 };
 
-class RouteListRegistry {
+class RouteListRegistry : public ubsocket::LeakySingleton<RouteListRegistry> {
+    friend ubsocket::LeakySingleton<RouteListRegistry>;
+
 public:
-    static RouteListRegistry &Instance()
-    {
-        static RouteListRegistry inst;
-        return inst;
-    }
     // 注册或者替换routeList值
     void RegisterOrReplaceRouteList(const umq_eid_t &eid, const umq_route_list_t &routeList)
     {
