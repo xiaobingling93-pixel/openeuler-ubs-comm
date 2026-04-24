@@ -23,23 +23,24 @@
 #include "umq_types.h"
 #include "umq_types.h"
 #include "ub_lock_ops.h"
+#include "leaky_singleton.h"
 
-inline bool operator==(const umq_eid_t& a, const umq_eid_t& b)
+inline bool operator==(const umq_eid_t &a, const umq_eid_t &b)
 {
     return ::memcmp(a.raw, b.raw, sizeof(a.raw)) == 0;
 }
 
-inline bool operator!=(const umq_eid_t& a, const umq_eid_t& b)
+inline bool operator!=(const umq_eid_t &a, const umq_eid_t &b)
 {
-    return !(a==b);
+    return !(a == b);
 }
 
 namespace Brpc {
 struct UmqEidHash {
-    std::size_t operator()(const umq_eid_t& eid) const noexcept
+    std::size_t operator()(const umq_eid_t &eid) const noexcept
     {
-        uint64_t h = *reinterpret_cast<const uint64_t*>(eid.raw);
-        uint64_t l = *reinterpret_cast<const uint64_t*>(eid.raw + 8);
+        uint64_t h = *reinterpret_cast<const uint64_t *>(eid.raw);
+        uint64_t l = *reinterpret_cast<const uint64_t *>(eid.raw + 8);
         return std::hash<uint64_t>{}(h) ^ (std::hash<uint64_t>{}(l) << 1);
     }
 };
@@ -58,8 +59,7 @@ public:
         return m_umqh;
     }
 
-    template<typename F>
-    ubsocket::Error EnsurePrefilled(const F &f)
+    template<typename F> ubsocket::Error EnsurePrefilled(const F &f)
     {
         if (!__atomic_load_n(&m_prefilled, __ATOMIC_ACQUIRE)) {
             ScopedUbExclusiveLocker lock(m_mutex);
@@ -81,19 +81,20 @@ private:
     bool m_prefilled = false;
 };
 
-inline bool operator==(const MainUmqState& lhs, const MainUmqState& rhs)
+inline bool operator==(const MainUmqState &lhs, const MainUmqState &rhs)
 {
     return lhs.GetUmqHandle() == rhs.GetUmqHandle();
 }
 
-class EidUmqTable {
+class EidUmqTable : public ubsocket::LeakySingleton<EidUmqTable> {
+    friend ubsocket::LeakySingleton<EidUmqTable>;
+
 public:
     static void Add(const umq_eid_t &eid, uint64_t main_umq)
     {
-        EidUmqTable *inst = Instance();
-        ScopedUbExclusiveLocker sLock(inst->mutex);
-
-        auto &vec = inst->table[eid];
+        EidUmqTable &inst = Instance();
+        ScopedUbExclusiveLocker sLock(inst.mutex);
+        auto &vec = inst.table[eid];
         auto it = std::find_if(vec.begin(), vec.end(), [main_umq](const std::shared_ptr<MainUmqState> &state) {
             return state->GetUmqHandle() == main_umq;
         });
@@ -104,40 +105,39 @@ public:
 
     static bool Get(const umq_eid_t &eid, std::vector<std::shared_ptr<MainUmqState>> &out)
     {
-        EidUmqTable *inst = Instance();
-        ScopedUbExclusiveLocker sLock(inst->mutex);
-        auto it = inst->table.find(eid);
-        if (it != inst->table.end()) {
+        EidUmqTable &inst = Instance();
+        ScopedUbExclusiveLocker sLock(inst.mutex);
+        auto it = inst.table.find(eid);
+        if (it != inst.table.end()) {
             out = it->second;
             return true;
         }
-
         return false;
     }
 
     static std::shared_ptr<MainUmqState> GetFirst(const umq_eid_t &eid)
     {
-        auto *inst = Instance();
-        ScopedUbExclusiveLocker lock(inst->mutex);
-        auto it = inst->table.find(eid);
-        if (it != inst->table.end()) {
+        auto &inst = Instance();
+        ScopedUbExclusiveLocker lock(inst.mutex);
+        auto it = inst.table.find(eid);
+        if (it != inst.table.end()) {
             return it->second[0];
         }
         return {};
     }
 
-    static void Remove(const umq_eid_t& eid)
+    static void Remove(const umq_eid_t &eid)
     {
-        EidUmqTable *inst = Instance();
-        ScopedUbExclusiveLocker sLock(inst->mutex);
-        inst->table.erase(eid);
+        EidUmqTable &inst = Instance();
+        ScopedUbExclusiveLocker sLock(inst.mutex);
+        inst.table.erase(eid);
     }
 
     static void RemoveMainUmq(uint64_t main_umq)
     {
-        EidUmqTable *inst = Instance();
-        ScopedUbExclusiveLocker sLock(inst->mutex);
-        for (auto &[key, value] : inst->table) {
+        EidUmqTable &inst = Instance();
+        ScopedUbExclusiveLocker sLock(inst.mutex);
+        for (auto &[key, value] : inst.table) {
             value.erase(std::remove_if(value.begin(), value.end(),
                                        [main_umq](const std::shared_ptr<MainUmqState> &state) {
                                            return state->GetUmqHandle() == main_umq;
@@ -148,19 +148,19 @@ public:
 
     static void Clean()
     {
-        EidUmqTable *inst = Instance();
-        ScopedUbExclusiveLocker sLock(inst->mutex);
-        inst->table.clear();
+        EidUmqTable &inst = Instance();
+        ScopedUbExclusiveLocker sLock(inst.mutex);
+        inst.table.clear();
     }
 
-    static u_external_mutex_t* GetMainMutex()
+    static u_external_mutex_t *GetMainMutex()
     {
-        EidUmqTable *inst = Instance();
-        return inst->main_mutex;
+        EidUmqTable &inst = Instance();
+        return inst.main_mutex;
     }
 
-    EidUmqTable(const EidUmqTable&) = delete;
-    EidUmqTable& operator=(const EidUmqTable&) = delete;
+    EidUmqTable(const EidUmqTable &) = delete;
+    EidUmqTable &operator=(const EidUmqTable &) = delete;
 
 private:
     EidUmqTable()
@@ -172,11 +172,6 @@ private:
     {
         g_external_lock_ops.destroy(mutex);
         g_external_lock_ops.destroy(main_mutex);
-    }
-    static EidUmqTable *Instance()
-    {
-        static EidUmqTable inst;
-        return &inst;
     }
 
     std::unordered_map<umq_eid_t, std::vector<std::shared_ptr<MainUmqState>>, UmqEidHash> table;
@@ -193,7 +188,7 @@ public:
         inst->table[socket_fd] = epoll_fd;
     }
 
-    static bool Get(int socket_fd, int& epoll_fd)
+    static bool Get(int socket_fd, int &epoll_fd)
     {
         SocketFdEpollTable *inst = Instance();
         ScopedUbExclusiveLocker sLock(inst->mutex);
@@ -220,8 +215,8 @@ public:
         inst->table.erase(socket_fd);
     }
 
-    SocketFdEpollTable(const SocketFdEpollTable&) = delete;
-    SocketFdEpollTable& operator=(const SocketFdEpollTable&) = delete;
+    SocketFdEpollTable(const SocketFdEpollTable &) = delete;
+    SocketFdEpollTable &operator=(const SocketFdEpollTable &) = delete;
 
 private:
     SocketFdEpollTable()
@@ -239,7 +234,7 @@ private:
     }
 
     std::map<int, int> table;
-    u_external_mutex_t* mutex;
+    u_external_mutex_t *mutex;
 };
 
 class MainSubUmqTable {
@@ -257,7 +252,7 @@ public:
         iter->second.emplace_back(sub_umq);
     }
 
-    static bool GetSubUmqs(uint64_t main_umq, std::vector<uint64_t>& sub_umqs)
+    static bool GetSubUmqs(uint64_t main_umq, std::vector<uint64_t> &sub_umqs)
     {
         MainSubUmqTable *inst = Instance();
         ScopedUbExclusiveLocker sLock(inst->mutex);
@@ -308,8 +303,8 @@ public:
         local_table.clear();
     }
 
-    MainSubUmqTable(const MainSubUmqTable&) = delete;
-    MainSubUmqTable& operator=(const MainSubUmqTable&) = delete;
+    MainSubUmqTable(const MainSubUmqTable &) = delete;
+    MainSubUmqTable &operator=(const MainSubUmqTable &) = delete;
 
 private:
     MainSubUmqTable()
@@ -322,20 +317,18 @@ private:
     }
     static MainSubUmqTable *Instance()
     {
-        std::call_once(init_flag_, []() {
-            instance_ = new MainSubUmqTable();
-        });
+        std::call_once(init_flag_, []() { instance_ = new MainSubUmqTable(); });
         return instance_;
     }
 
     std::map<uint64_t, std::vector<uint64_t>> table;
-    u_external_mutex_t* mutex;
-    static MainSubUmqTable* instance_;
+    u_external_mutex_t *mutex;
+    static MainSubUmqTable *instance_;
     static std::once_flag init_flag_;
 };
 
-inline MainSubUmqTable* MainSubUmqTable::instance_ = nullptr;
+inline MainSubUmqTable *MainSubUmqTable::instance_ = nullptr;
 inline std::once_flag MainSubUmqTable::init_flag_;
-}
+}  // namespace Brpc
 
 #endif
