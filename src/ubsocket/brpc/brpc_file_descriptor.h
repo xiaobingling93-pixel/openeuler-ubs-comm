@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
 #include <string>
 #include <netinet/in.h>
@@ -667,13 +668,21 @@ public:
         RPC_ADPT_VLOG_DEBUG("recv remote control message, fd: %d, cp msg len: %d, bind info len: %d\n",
             m_fd, sizeof(remote_cp_msg), remote_cp_msg.queue_bind_info_size);
 
+        struct timeval start_tv;
+        gettimeofday(&start_tv, NULL);
         int umq_ret = umq_bind(m_local_umqh, remote_cp_msg.queue_bind_info, remote_cp_msg.queue_bind_info_size);
+        struct timeval end_tv;
+        gettimeofday(&end_tv, NULL);
+        long long costms = (end_tv.tv_sec - start_tv.tv_sec) * 1000LL +
+                    (end_tv.tv_usec - start_tv.tv_usec) / 1000LL;
+
         if (umq_ret != UMQ_SUCCESS) {
             RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API,
-                "umq_bind() failed, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d, ret: %d\n",
-                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd, umq_ret);
+                "umq_bind() failed, Peer eid:" EID_FMT ",Peer IP:%s, fd: %d, ret: %d, operation duration: %lld ms.\n",
+                EID_ARGS(GetPeerEid()), GetPeerIp().c_str(), m_fd, umq_ret, costms);
             return ubsocket::Error::kUMQ_BIND | ubsocket::Error::kRETRYABLE | ubsocket::Error::kDEGRADABLE;
         }
+        RPC_ADPT_VLOG_INFO("umq_bind success, ret: %d, operation duration: %lld ms.\n", umq_ret, costms);
         m_bind_remote = true;
 
         if (Context::GetContext()->EnableShareJfr()) {
@@ -3803,12 +3812,19 @@ private:
         RPC_ADPT_VLOG_DEBUG("send local control message, fd: %d, cp msg len: %d, bind info len: %d\n",
             new_fd, sizeof(local_cp_msg), local_cp_msg.queue_bind_info_size);
 
+        struct timeval start_tv;
+        gettimeofday(&start_tv, NULL);    
         int umq_ret = umq_bind(socket_fd_obj->GetLocalUmqHandle(), remote_cp_msg.queue_bind_info,
                                remote_cp_msg.queue_bind_info_size);
+        struct timeval end_tv;
+        gettimeofday(&end_tv, NULL);
+        long long costms = (end_tv.tv_sec - start_tv.tv_sec) * 1000LL +
+                    (end_tv.tv_usec - start_tv.tv_usec) / 1000LL;
         if (umq_ret != UMQ_SUCCESS) {
-            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_bind() failed, ret: %d\n", umq_ret);
+            RPC_ADPT_VLOG_ERR(ubsocket::UMQ_API, "umq_bind() failed, ret: %d, operation duration: %lld ms.\n", umq_ret, costms);
             return ubsocket::Error::kUMQ_BIND | ubsocket::Error::kRETRYABLE | ubsocket::Error::kDEGRADABLE;
         }
+        RPC_ADPT_VLOG_INFO("umq_bind success, ret: %d, operation duration: %lld ms.\n", umq_ret, costms);
         socket_fd_obj->SetBindRemote(true);
 
         if (Context::GetContext()->EnableShareJfr()) {
