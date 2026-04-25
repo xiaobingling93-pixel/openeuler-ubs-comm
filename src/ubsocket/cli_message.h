@@ -34,8 +34,12 @@ enum class CLICommand : uint8_t {
     TOPO = 1,
     STAT = 2,
     DELAY = 3,
-    FC = 4,
-    PROBE = 5,
+    FLOW_CONTROL = 4,
+    QBUF_POOL = 5,
+    UMQ_INFO = 6,
+    IO = 7,
+    UMQ = 8,
+    PROBE = 9,
 };
 
 enum class CLITypeParam : uint8_t {
@@ -123,6 +127,30 @@ struct CLIFlowControlData {
     uint64_t socketId;
     uint64_t createTime;
     umq_flow_control_stats_t umqFlowControlStat;
+};
+
+struct CLIQbufPoolData {
+    uint64_t socketId;
+    uint64_t createTime;
+    umq_qbuf_pool_stats_t umqQbufPoolStat;
+};
+
+struct CLIUmqInfoData {
+    uint64_t socketId;
+    uint64_t createTime;
+    umq_info_t umqInfo;
+};
+
+struct CLIIoPacketData {
+    uint64_t socketId;
+    uint64_t createTime;
+    umq_packet_stats_t umqPacketStat;
+};
+
+struct CLIUmqPerfData {
+    uint64_t socketId;
+    uint64_t createTime;
+    umq_perf_stats_t umqPerfStat;
 };
 
 struct __attribute__((packed)) CLIProbeHeader {

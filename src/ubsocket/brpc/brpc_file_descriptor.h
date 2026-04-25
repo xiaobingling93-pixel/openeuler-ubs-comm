@@ -1181,6 +1181,53 @@ public:
         }
     }
 
+    virtual void GetSocketQbufPoolData(Statistics::CLIQbufPoolData *data)
+    {
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+            m_conn_info.create_time.time_since_epoch());
+        data->createTime = static_cast<uint64_t>(duration.count());
+
+        if (umq_stats_qbuf_pool_get(
+            m_local_umqh, &(data->umqQbufPoolStat)) != 0) {
+            RPC_ADPT_VLOG_WARN("Failed to get umq qbuf pool info\n");
+        }
+    }
+
+    virtual void GetSocketUmqInfoData(Statistics::CLIUmqInfoData *data)
+    {
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+            m_conn_info.create_time.time_since_epoch());
+        data->createTime = static_cast<uint64_t>(duration.count());
+
+        if (umq_info_get(
+            m_local_umqh, &(data->umqInfo)) != 0) {
+            RPC_ADPT_VLOG_WARN("Failed to get umq info\n");
+        }
+    }
+
+    virtual void GetSocketIoPacketData(Statistics::CLIIoPacketData *data)
+    {
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+            m_conn_info.create_time.time_since_epoch());
+        data->createTime = static_cast<uint64_t>(duration.count());
+
+        if (umq_stats_io_get(
+            m_local_umqh, &(data->umqPacketStat)) != 0) {
+            RPC_ADPT_VLOG_WARN("Failed to get umq io packet stats\n");
+        }
+    }
+
+    virtual void GetSocketUmqPerfData(Statistics::CLIUmqPerfData *data)
+    {
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+            m_conn_info.create_time.time_since_epoch());
+        data->createTime = static_cast<uint64_t>(duration.count());
+
+        if (umq_stats_perf_get(&(data->umqPerfStat)) != 0) {
+            RPC_ADPT_VLOG_WARN("Failed to get umq perf stats\n");
+        }
+    }
+
     virtual void GetSocketCLIData(Statistics::CLISocketData *data)
     {
         StatsMgr::GetSocketCLIData(data);

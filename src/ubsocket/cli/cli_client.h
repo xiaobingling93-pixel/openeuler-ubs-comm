@@ -40,7 +40,13 @@ public:
 
     int ProcessDelayQuery(int sockfd, CLIMessage &response, CLIArgsParser::ParsedArgs &args);
 
-    int ProcessUmqInfo(int sockfd, CLIMessage &response, CLIArgsParser::ParsedArgs &args);
+    int ProcessQbufPool(int sockfd, CLIMessage &response);
+
+    int ProcessUmqInfo(int sockfd, CLIMessage &response);
+
+    int ProcessIo(int sockfd, CLIMessage &response);
+
+    int ProcessUmq(int sockfd, CLIMessage &response);
 
     int ProcessProbeQuery(int sockfd, CLIMessage &response);
 private:

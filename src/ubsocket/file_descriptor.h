@@ -323,6 +323,10 @@ class SocketFd : public Fd<SocketFd> {
     virtual void OutputStats(std::ostringstream &oss) = 0;
     virtual void GetSocketCLIData(Statistics::CLISocketData *data) = 0;
     virtual void GetSocketFlowControlData(Statistics::CLIFlowControlData *data) = 0;
+    virtual void GetSocketQbufPoolData(Statistics::CLIQbufPoolData *data) = 0;
+    virtual void GetSocketUmqInfoData(Statistics::CLIUmqInfoData *data) = 0;
+    virtual void GetSocketIoPacketData(Statistics::CLIIoPacketData *data) = 0;
+    virtual void GetSocketUmqPerfData(Statistics::CLIUmqPerfData *data) = 0;
     virtual uint64_t GetLocalUmqHandle(void) = 0;
     virtual bool IsClient(void) = 0;
     virtual uint32_t GetBrpcIoBufSize(void) = 0;

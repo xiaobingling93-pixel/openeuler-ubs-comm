@@ -9,6 +9,8 @@
 
 #include "utracer_info.h"
 #include "cli_terminal_display.h"
+#include "umq_dfx_types.h"
+#include "umq_types.h"
 
 namespace Statistics {
 
@@ -316,6 +318,7 @@ void TerminalDisplay::PrintSubTitle()
     printf("      ");
     PrintDelimiter();
     PrintSubTitleItem("Remote Ip");
+    printf("      ");
     PrintDelimiter();
     PrintSubTitleItem("Local Eid");
     printf("                              ");
@@ -355,7 +358,7 @@ void TerminalDisplay::PrintData(CLISocketData *sockData)
     PrintDelimiter();
     PrintDataItem("Creation Time", ConvertTimeToString(sockData->createTime), colorGrey, false);
     PrintDelimiter();
-    PrintDataItem("Remote Ip", sockData->remoteIp, colorGrey, false);
+    PrintDataItem("Remote Ip      ", sockData->remoteIp, colorGrey, false);
     PrintDelimiter();
     PrintDataItem("Local Eid", ConvertEidToString(sockData->localEid, UMQ_EID_SIZE), colorBlue, false);
     PrintDelimiter();
@@ -430,5 +433,153 @@ std::string TerminalDisplay::ConvertEidToString(const uint8_t* eidArray, size_t 
         }
     }
     return ss.str();
+}
+
+void TerminalDisplay::DisplayQbufPoolInfo(uint8_t *data, uint32_t dataLen)
+{
+    uint32_t headerSize = sizeof(CLIDataHeader);
+    if (dataLen < headerSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    CLIDataHeader header{};
+    if (memcpy_s(&header, sizeof(CLIDataHeader), data, headerSize) != 0) {
+        CLI_LOG("Failed to memcpy CLIDataHeader\n");
+        return;
+    }
+    uint32_t SocketNum = header.socketNum;
+    uint32_t expectedSize = headerSize + SocketNum * sizeof(CLIQbufPoolData);
+    if (dataLen != expectedSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    // print data
+    Refresh();
+    PrintHeader(header);
+
+    char qbufPoolStatStr[8192] = {}; // 8KB buffer for qbuf pool stats
+    CLIQbufPoolData* sockData = reinterpret_cast<CLIQbufPoolData *>(data + headerSize);
+    for (uint32_t i = 0; i < SocketNum; i++) {
+        if (umq_qbuf_pool_stats_to_str(&(sockData->umqQbufPoolStat),
+            qbufPoolStatStr, sizeof(qbufPoolStatStr)) < 0) {
+                CLI_LOG("Failed to generate qbuf pool info string\n");
+            }
+        printf("Socket %d:\n", i);
+        printf("%s", qbufPoolStatStr);
+        sockData += 1;
+    }
+    NewLine();
+    printf("%sPress Ctrl+C to exit%s\n", colorBold, colorReset);
+}
+
+void TerminalDisplay::DisplayUmqInfo(uint8_t *data, uint32_t dataLen)
+{
+    uint32_t headerSize = sizeof(CLIDataHeader);
+    if (dataLen < headerSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    CLIDataHeader header{};
+    if (memcpy_s(&header, sizeof(CLIDataHeader), data, headerSize) != 0) {
+        CLI_LOG("Failed to memcpy CLIDataHeader\n");
+        return;
+    }
+    uint32_t SocketNum = header.socketNum;
+    uint32_t expectedSize = headerSize + SocketNum * sizeof(CLIUmqInfoData);
+    if (dataLen != expectedSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    // print data
+    Refresh();
+    PrintHeader(header);
+
+    char umqInfoStr[8192] = {}; // 8KB buffer for umq info
+    CLIUmqInfoData* sockData = reinterpret_cast<CLIUmqInfoData *>(data + headerSize);
+    for (uint32_t i = 0; i < SocketNum; i++) {
+        if (umq_info_to_str(&(sockData->umqInfo),
+            umqInfoStr, sizeof(umqInfoStr)) < 0) {
+                CLI_LOG("Failed to generate umq info string\n");
+            }
+        printf("Socket %d:\n", i);
+        printf("%s", umqInfoStr);
+        sockData += 1;
+    }
+    NewLine();
+    printf("%sPress Ctrl+C to exit%s\n", colorBold, colorReset);
+}
+
+void TerminalDisplay::DisplayIoPacketInfo(uint8_t *data, uint32_t dataLen)
+{
+    uint32_t headerSize = sizeof(CLIDataHeader);
+    if (dataLen < headerSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    CLIDataHeader header{};
+    if (memcpy_s(&header, sizeof(CLIDataHeader), data, headerSize) != 0) {
+        CLI_LOG("Failed to memcpy CLIDataHeader\n");
+        return;
+    }
+    uint32_t SocketNum = header.socketNum;
+    uint32_t expectedSize = headerSize + SocketNum * sizeof(CLIIoPacketData);
+    if (dataLen != expectedSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    // print data
+    Refresh();
+    PrintHeader(header);
+
+    char ioPacketStatStr[8192] = {}; // 8KB buffer for io packet stats
+    CLIIoPacketData* sockData = reinterpret_cast<CLIIoPacketData *>(data + headerSize);
+    for (uint32_t i = 0; i < SocketNum; i++) {
+        if (umq_io_stats_to_str(&(sockData->umqPacketStat),
+            ioPacketStatStr, sizeof(ioPacketStatStr)) < 0) {
+                CLI_LOG("Failed to generate io packet stats string\n");
+            }
+        printf("Socket %d:\n", i);
+        printf("%s", ioPacketStatStr);
+        sockData += 1;
+    }
+    NewLine();
+    printf("%sPress Ctrl+C to exit%s\n", colorBold, colorReset);
+}
+
+void TerminalDisplay::DisplayUmqPerfInfo(uint8_t *data, uint32_t dataLen)
+{
+    uint32_t headerSize = sizeof(CLIDataHeader);
+    if (dataLen < headerSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    CLIDataHeader header{};
+    if (memcpy_s(&header, sizeof(CLIDataHeader), data, headerSize) != 0) {
+        CLI_LOG("Failed to memcpy CLIDataHeader\n");
+        return;
+    }
+    uint32_t SocketNum = header.socketNum;
+    uint32_t expectedSize = headerSize + SocketNum * sizeof(CLIUmqPerfData);
+    if (dataLen != expectedSize) {
+        CLI_LOG("Invalid data size\n");
+        return;
+    }
+    // print data
+    Refresh();
+    PrintHeader(header);
+
+    char umqPerfStatStr[8192] = {}; // 8KB buffer for umq perf stats
+    CLIUmqPerfData* sockData = reinterpret_cast<CLIUmqPerfData *>(data + headerSize);
+    for (uint32_t i = 0; i < SocketNum; i++) {
+        if (umq_stats_perf_to_str(&(sockData->umqPerfStat),
+            umqPerfStatStr, sizeof(umqPerfStatStr)) < 0) {
+                CLI_LOG("Failed to generate umq perf stats string\n");
+            }
+        printf("Socket %d:\n", i);
+        printf("%s", umqPerfStatStr);
+        sockData += 1;
+    }
+    NewLine();
+    printf("%sPress Ctrl+C to exit%s\n", colorBold, colorReset);
 }
 }

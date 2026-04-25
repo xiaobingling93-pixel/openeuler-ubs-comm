@@ -54,7 +54,7 @@ int CLIClient::ProcessStat(int sockfd, CLIMessage &response)
 int CLIClient::ProcessFlowControl(int sockfd, CLIMessage &response)
 {
     CLIControlHeader header{};
-    header.mCmdId = CLICommand::FC;
+    header.mCmdId = CLICommand::FLOW_CONTROL;
     if (SocketFd::SendSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
         sizeof(CLIControlHeader)) {
         CLI_LOG("Failed to send CLIControlHeader\n");
@@ -229,6 +229,138 @@ int CLIClient::ProcessDelayQuery(int sockfd, CLIMessage &response, CLIArgsParser
     return 0;
 }
 
+int CLIClient::ProcessQbufPool(int sockfd, CLIMessage &response)
+{
+    CLIControlHeader header{};
+    header.mCmdId = CLICommand::QBUF_POOL;
+    if (SocketFd::SendSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to send CLIControlHeader\n");
+        return -1;
+    }
+    if (SocketFd::RecvSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to recv CLIControlHeader\n");
+        return -1;
+    }
+    uint32_t payloadLen = header.mDataSize;
+    if (payloadLen == 0 || payloadLen > maxResponseSize) {
+        CLI_LOG("Invalid paylaod size: %d\n", payloadLen);
+        return -1;
+    }
+
+    if (!response.AllocateIfNeed(payloadLen)) {
+        CLI_LOG("Failed to alloc reponsese memory\n");
+        return -1;
+    }
+
+    if (SocketFd::RecvSocketData(sockfd, response.Data(), payloadLen, cliclientIoTimeoutMs) != payloadLen) {
+        CLI_LOG("Failed to recv server msg\n");
+        return -1;
+    }
+    response.SetDataLen(payloadLen);
+    return 0;
+}
+
+int CLIClient::ProcessUmqInfo(int sockfd, CLIMessage &response)
+{
+    CLIControlHeader header{};
+    header.mCmdId = CLICommand::UMQ_INFO;
+    if (SocketFd::SendSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to send CLIControlHeader\n");
+        return -1;
+    }
+    if (SocketFd::RecvSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to recv CLIControlHeader\n");
+        return -1;
+    }
+    uint32_t payloadLen = header.mDataSize;
+    if (payloadLen == 0 || payloadLen > maxResponseSize) {
+        CLI_LOG("Invalid paylaod size: %d\n", payloadLen);
+        return -1;
+    }
+
+    if (!response.AllocateIfNeed(payloadLen)) {
+        CLI_LOG("Failed to alloc reponsese memory\n");
+        return -1;
+    }
+
+    if (SocketFd::RecvSocketData(sockfd, response.Data(), payloadLen, cliclientIoTimeoutMs) != payloadLen) {
+        CLI_LOG("Failed to recv server msg\n");
+        return -1;
+    }
+    response.SetDataLen(payloadLen);
+    return 0;
+}
+
+int CLIClient::ProcessIo(int sockfd, CLIMessage &response)
+{
+    CLIControlHeader header{};
+    header.mCmdId = CLICommand::IO;
+    if (SocketFd::SendSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to send CLIControlHeader\n");
+        return -1;
+    }
+    if (SocketFd::RecvSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to recv CLIControlHeader\n");
+        return -1;
+    }
+    uint32_t payloadLen = header.mDataSize;
+    if (payloadLen == 0 || payloadLen > maxResponseSize) {
+        CLI_LOG("Invalid paylaod size: %d\n", payloadLen);
+        return -1;
+    }
+
+    if (!response.AllocateIfNeed(payloadLen)) {
+        CLI_LOG("Failed to alloc reponsese memory\n");
+        return -1;
+    }
+
+    if (SocketFd::RecvSocketData(sockfd, response.Data(), payloadLen, cliclientIoTimeoutMs) != payloadLen) {
+        CLI_LOG("Failed to recv server msg\n");
+        return -1;
+    }
+    response.SetDataLen(payloadLen);
+    return 0;
+}
+
+int CLIClient::ProcessUmq(int sockfd, CLIMessage &response)
+{
+    CLIControlHeader header{};
+    header.mCmdId = CLICommand::UMQ;
+    if (SocketFd::SendSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to send CLIControlHeader\n");
+        return -1;
+    }
+    if (SocketFd::RecvSocketData(sockfd, &header, sizeof(CLIControlHeader), cliclientIoTimeoutMs) !=
+        sizeof(CLIControlHeader)) {
+        CLI_LOG("Failed to recv CLIControlHeader\n");
+        return -1;
+    }
+    uint32_t payloadLen = header.mDataSize;
+    if (payloadLen == 0 || payloadLen > maxResponseSize) {
+        CLI_LOG("Invalid paylaod size: %d\n", payloadLen);
+        return -1;
+    }
+
+    if (!response.AllocateIfNeed(payloadLen)) {
+        CLI_LOG("Failed to alloc reponsese memory\n");
+        return -1;
+    }
+
+    if (SocketFd::RecvSocketData(sockfd, response.Data(), payloadLen, cliclientIoTimeoutMs) != payloadLen) {
+        CLI_LOG("Failed to recv server msg\n");
+        return -1;
+    }
+    response.SetDataLen(payloadLen);
+    return 0;
+}
+
 int CLIClient::Query(CLIArgsParser::ParsedArgs &args, CLIMessage &response)
 {
     if (!IsServerAvailable()) {
@@ -270,11 +402,6 @@ int CLIClient::Query(CLIArgsParser::ParsedArgs &args, CLIMessage &response)
         return ret;
     }
 
-    if (args.command == CLICommand::FC) {
-        ret = ProcessFlowControl(sockfd, response);
-        return ret;
-    }
-
     if (args.command == CLICommand::TOPO) {
         ret = ProcessTopo(sockfd, response, args);
         return ret;
@@ -282,6 +409,31 @@ int CLIClient::Query(CLIArgsParser::ParsedArgs &args, CLIMessage &response)
 
     if (args.command == CLICommand::DELAY) {
         ret =  ProcessDelayQuery(sockfd, response, args);
+        return ret;
+    }
+    
+    if (args.command == CLICommand::FLOW_CONTROL) {
+        ret = ProcessFlowControl(sockfd, response);
+        return ret;
+    }
+    
+    if (args.command == CLICommand::QBUF_POOL) {
+        ret = ProcessQbufPool(sockfd, response);
+        return ret;
+    }
+    
+    if (args.command == CLICommand::UMQ_INFO) {
+        ret = ProcessUmqInfo(sockfd, response);
+        return ret;
+    }
+    
+    if (args.command == CLICommand::IO) {
+        ret = ProcessIo(sockfd, response);
+        return ret;
+    }
+    
+    if (args.command == CLICommand::UMQ) {
+        ret = ProcessUmq(sockfd, response);
         return ret;
     }
 

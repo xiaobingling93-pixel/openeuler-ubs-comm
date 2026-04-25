@@ -30,6 +30,9 @@
 #include "utracer.h"
 #include "utracer_manager.h"
 #include "net_common.h"
+#include "umq_dfx_types.h"
+#include "umq_dfx_api.h"
+#include "umq_errno.h"
 #include "probe_manager.h"
 
 #define RPC_VAR         (2)
@@ -574,6 +577,70 @@ class Listener {
         }
     }
 
+    void GetAllQbufPoolData(CLIQbufPoolData *data, uint32_t sockNum)
+    {
+        ScopedUbReadLocker lock(Fd<SocketFd>::GetRWLock());
+        SocketFd **socketMap = Fd<SocketFd>::GetFdObjMap();
+        uint32_t doneNum = 0;
+        for (uint32_t i = 0; i < RPC_ADPT_FD_MAX && doneNum < sockNum; ++i) {
+            if (socketMap[i] == nullptr || socketMap[i]->GetFdType() == FdType::NATIVE_SOCKET_FD) {
+                continue;
+            }
+            data->socketId = i;
+            socketMap[i]->GetSocketQbufPoolData(data);
+            data += 1;
+            doneNum += 1;
+        }
+    }
+
+    void GetAllUmqInfoData(CLIUmqInfoData *data, uint32_t sockNum)
+    {
+        ScopedUbReadLocker lock(Fd<SocketFd>::GetRWLock());
+        SocketFd **socketMap = Fd<SocketFd>::GetFdObjMap();
+        uint32_t doneNum = 0;
+        for (uint32_t i = 0; i < RPC_ADPT_FD_MAX && doneNum < sockNum; ++i) {
+            if (socketMap[i] == nullptr || socketMap[i]->GetFdType() == FdType::NATIVE_SOCKET_FD) {
+                continue;
+            }
+            data->socketId = i;
+            socketMap[i]->GetSocketUmqInfoData(data);
+            data += 1;
+            doneNum += 1;
+        }
+    }
+
+    void GetAllIoPacketData(CLIIoPacketData *data, uint32_t sockNum)
+    {
+        ScopedUbReadLocker lock(Fd<SocketFd>::GetRWLock());
+        SocketFd **socketMap = Fd<SocketFd>::GetFdObjMap();
+        uint32_t doneNum = 0;
+        for (uint32_t i = 0; i < RPC_ADPT_FD_MAX && doneNum < sockNum; ++i) {
+            if (socketMap[i] == nullptr || socketMap[i]->GetFdType() == FdType::NATIVE_SOCKET_FD) {
+                continue;
+            }
+            data->socketId = i;
+            socketMap[i]->GetSocketIoPacketData(data);
+            data += 1;
+            doneNum += 1;
+        }
+    }
+
+    void GetAllUmqPerfData(CLIUmqPerfData *data, uint32_t sockNum)
+    {
+        ScopedUbReadLocker lock(Fd<SocketFd>::GetRWLock());
+        SocketFd **socketMap = Fd<SocketFd>::GetFdObjMap();
+        uint32_t doneNum = 0;
+        for (uint32_t i = 0; i < RPC_ADPT_FD_MAX && doneNum < sockNum; ++i) {
+            if (socketMap[i] == nullptr || socketMap[i]->GetFdType() == FdType::NATIVE_SOCKET_FD) {
+                continue;
+            }
+            data->socketId = i;
+            socketMap[i]->GetSocketUmqPerfData(data);
+            data += 1;
+            doneNum += 1;
+        }
+    }
+
     void Poll(void)
     {
         struct epoll_event events[MAX_EPOLL_EVENT_NUM];
@@ -839,6 +906,182 @@ class Listener {
         }
     }
 
+    void ProcessQbufPoolRequest(int fd, CLIMessage &msg, CLIControlHeader &header)
+    {
+        // collect socket count
+        uint32_t headerSize = sizeof(CLIDataHeader);
+        uint32_t sockNum = GetSockNum();
+        uint32_t sockDataSize = sockNum * sizeof(CLIQbufPoolData);
+        uint32_t totalSize = headerSize + sockDataSize;
+        // malloc mem base on socket cnt
+        if (!msg.AllocateIfNeed(totalSize)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to alloc response memory\n");
+            return;
+        }
+        msg.ResetBuf();
+        CLIDataHeader CLIheader{};
+        CLIheader.socketNum = sockNum;
+        CLIheader.connNum = StatsMgr::GetConnCount();
+        CLIheader.activeConn = StatsMgr::GetActiveConnCount();
+        // collect data
+        if (memcpy_s(msg.Data(), msg.GetBufLen(), &CLIheader, headerSize) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to memcpy cli header\n");
+            return;
+        }
+        uint8_t *data = reinterpret_cast<uint8_t *>(msg.Data()) + sizeof(CLIDataHeader);
+        GetAllQbufPoolData(reinterpret_cast<CLIQbufPoolData *>(data), sockNum);
+        header.Reset();
+        header.mDataSize = totalSize;
+        if (SocketFd::SendSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
+            sizeof(CLIControlHeader)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
+            return;
+        }
+
+        if (SocketFd::SendSocketData(fd, msg.Data(), totalSize, LISTENER_SEND_RECV_TIMEOUT_MS) != totalSize) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIQbufPoolData\n");
+            return;
+        }
+    }
+
+    void ProcessUmqInfoRequest(int fd, CLIMessage &msg, CLIControlHeader &header)
+    {
+        // collect socket count
+        uint32_t headerSize = sizeof(CLIDataHeader);
+        uint32_t sockNum = GetSockNum();
+        uint32_t sockDataSize = sockNum * sizeof(CLIUmqInfoData);
+        uint32_t totalSize = headerSize + sockDataSize;
+        // malloc mem base on socket cnt
+        if (!msg.AllocateIfNeed(totalSize)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to alloc response memory\n");
+            return;
+        }
+        msg.ResetBuf();
+        CLIDataHeader CLIheader{};
+        CLIheader.socketNum = sockNum;
+        CLIheader.connNum = StatsMgr::GetConnCount();
+        CLIheader.activeConn = StatsMgr::GetActiveConnCount();
+        // collect data
+        if (memcpy_s(msg.Data(), msg.GetBufLen(), &CLIheader, headerSize) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to memcpy cli header\n");
+            return;
+        }
+        uint8_t *data = reinterpret_cast<uint8_t *>(msg.Data()) + sizeof(CLIDataHeader);
+        GetAllUmqInfoData(reinterpret_cast<CLIUmqInfoData *>(data), sockNum);
+        header.Reset();
+        header.mDataSize = totalSize;
+        if (SocketFd::SendSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
+            sizeof(CLIControlHeader)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
+            return;
+        }
+
+        if (SocketFd::SendSocketData(fd, msg.Data(), totalSize, LISTENER_SEND_RECV_TIMEOUT_MS) != totalSize) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIUmqInfoData\n");
+            return;
+        }
+    }
+
+    void ProcessIoRequest(int fd, CLIMessage &msg, CLIControlHeader &header)
+    {
+        // collect socket count
+        uint32_t headerSize = sizeof(CLIDataHeader);
+        uint32_t sockNum = GetSockNum();
+        uint32_t sockDataSize = sockNum * sizeof(CLIIoPacketData);
+        uint32_t totalSize = headerSize + sockDataSize;
+        // malloc mem base on socket cnt
+        if (!msg.AllocateIfNeed(totalSize)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to alloc response memory\n");
+            return;
+        }
+        msg.ResetBuf();
+        CLIDataHeader CLIheader{};
+        CLIheader.socketNum = sockNum;
+        CLIheader.connNum = StatsMgr::GetConnCount();
+        CLIheader.activeConn = StatsMgr::GetActiveConnCount();
+        // collect data
+        if (memcpy_s(msg.Data(), msg.GetBufLen(), &CLIheader, headerSize) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to memcpy cli header\n");
+            return;
+        }
+        uint8_t *data = reinterpret_cast<uint8_t *>(msg.Data()) + sizeof(CLIDataHeader);
+        GetAllIoPacketData(reinterpret_cast<CLIIoPacketData *>(data), sockNum);
+        header.Reset();
+        header.mDataSize = totalSize;
+        if (SocketFd::SendSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
+            sizeof(CLIControlHeader)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
+            return;
+        }
+
+        if (SocketFd::SendSocketData(fd, msg.Data(), totalSize, LISTENER_SEND_RECV_TIMEOUT_MS) != totalSize) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIIoPacketData\n");
+            return;
+        }
+    }
+
+    void ProcessUmqRequest(int fd, CLIMessage &msg, CLIControlHeader &header)
+    {
+        // collect socket count
+        uint32_t headerSize = sizeof(CLIDataHeader);
+        uint32_t sockNum = GetSockNum();
+        uint32_t sockDataSize = sockNum * sizeof(CLIUmqPerfData);
+        uint32_t totalSize = headerSize + sockDataSize;
+        // malloc mem base on socket cnt
+        if (!msg.AllocateIfNeed(totalSize)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to alloc response memory\n");
+            return;
+        }
+        msg.ResetBuf();
+        CLIDataHeader CLIheader{};
+        CLIheader.socketNum = sockNum;
+        CLIheader.connNum = StatsMgr::GetConnCount();
+        CLIheader.activeConn = StatsMgr::GetActiveConnCount();
+        // collect data
+        if (memcpy_s(msg.Data(), msg.GetBufLen(), &CLIheader, headerSize) != 0) {
+            RPC_ADPT_VLOG_ERR(ubsocket::UBSocket, "Failed to memcpy cli header\n");
+            return;
+        }
+        uint8_t *data = reinterpret_cast<uint8_t *>(msg.Data()) + sizeof(CLIDataHeader);
+        GetAllUmqPerfData(reinterpret_cast<CLIUmqPerfData *>(data), sockNum);
+        header.Reset();
+        header.mDataSize = totalSize;
+        if (SocketFd::SendSocketData(fd, &header, sizeof(CLIControlHeader), LISTENER_SEND_RECV_TIMEOUT_MS) !=
+            sizeof(CLIControlHeader)) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIControlHeader\n");
+            return;
+        }
+
+        if (SocketFd::SendSocketData(fd, msg.Data(), totalSize, LISTENER_SEND_RECV_TIMEOUT_MS) != totalSize) {
+            RPC_ADPT_VLOG_ERR(ubsocket::NATIVE_SOCKET, "Failed to send CLIUmqPerfData\n");
+            return;
+        }
+    }
+
+    uint64_t GetFirstUmqHandle()
+    {
+        ScopedUbReadLocker lock(Fd<SocketFd>::GetRWLock());
+        SocketFd **socketMap = Fd<SocketFd>::GetFdObjMap();
+        for (uint32_t i = 0; i < RPC_ADPT_FD_MAX; ++i) {
+            if (socketMap[i] == nullptr || socketMap[i]->GetFdType() == FdType::NATIVE_SOCKET_FD) {
+                continue;
+            }
+            // Get main umq handle (from brpc_file_descriptor)
+            uint64_t umqh = GetMainUmqHandleFromSocket(socketMap[i]);
+            if (umqh != UMQ_INVALID_HANDLE) {
+                return umqh;
+            }
+        }
+        return UMQ_INVALID_HANDLE;
+    }
+
+    uint64_t GetMainUmqHandleFromSocket(SocketFd *socket)
+    {
+        // For now, return UMQ_INVALID_HANDLE to avoid compilation issues
+        // We'll need to properly include Brpc::SocketFd header in the future
+        return UMQ_INVALID_HANDLE;
+    }
+
     void Process(uint32_t events)
     {
         CLIMessage msg{};
@@ -882,8 +1125,16 @@ class Listener {
             ProcessTopoRequest(fd, header);
         } else if (header.mCmdId == CLICommand::DELAY) {
             ProcessDelayRequest(fd, msg, header);
-        } else if (header.mCmdId == CLICommand::FC) {
+        } else if (header.mCmdId == CLICommand::FLOW_CONTROL) {
             ProcessFlowControlRequest(fd, msg, header);
+        } else if (header.mCmdId == CLICommand::QBUF_POOL) {
+            ProcessQbufPoolRequest(fd, msg, header);
+        } else if (header.mCmdId == CLICommand::UMQ_INFO) {
+            ProcessUmqInfoRequest(fd, msg, header);
+        } else if (header.mCmdId == CLICommand::IO) {
+            ProcessIoRequest(fd, msg, header);
+        } else if (header.mCmdId == CLICommand::UMQ) {
+            ProcessUmqRequest(fd, msg, header);
         } else if (header.mCmdId == CLICommand::PROBE) {
             ProcessProbeRequest(fd, msg, header);
         }
